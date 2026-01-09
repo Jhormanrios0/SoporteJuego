@@ -1,0 +1,236 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  /* Colores Squid Game theme */
+  --neon-green: #00ffc2;
+  --neon-cyan: #00ffc2;
+  --neon-pink: #f7418f;
+  --neon-orange: #ffb800;
+  --neon-purple: #aa00ff;
+
+  /* Fondos */
+  --bg-dark: #000000;
+  --bg-darker: #050008;
+  --bg-panel: rgba(0, 0, 0, 0.9);
+
+  /* Fuente */
+  --font-arcade: "Press Start 2P", monospace;
+}
+
+body {
+  font-family: var(--font-arcade);
+  background: var(--bg-dark);
+  color: var(--neon-green);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#app {
+  min-height: 100vh;
+}
+
+/* Efecto CRT global */
+body::after {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.1),
+    rgba(0, 0, 0, 0.1) 1px,
+    transparent 1px,
+    transparent 2px
+  );
+  pointer-events: none;
+  z-index: 9999;
+  animation: scanline 8s linear infinite;
+}
+
+@keyframes scanline {
+  0% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(100%);
+  }
+}
+
+/* Scrollbar personalizada */
+::-webkit-scrollbar {
+  width: 12px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-darker);
+  border-left: 2px solid var(--neon-green);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--neon-green);
+  border: 2px solid var(--bg-darker);
+  box-shadow: 0 0 10px var(--neon-green);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--neon-cyan);
+  box-shadow: 0 0 15px var(--neon-cyan);
+}
+
+/* Inputs globales */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+textarea {
+  font-family: var(--font-arcade);
+}
+
+input::placeholder,
+textarea::placeholder {
+  opacity: 0.5;
+}
+
+/* Botones globales */
+button {
+  font-family: var(--font-arcade);
+  cursor: pointer;
+  user-select: none;
+}
+
+button:active {
+  transform: scale(0.98);
+}
+
+/* Efectos de texto neón */
+.glow-green {
+  color: var(--neon-green);
+  text-shadow: 0 0 10px var(--neon-green), 0 0 20px var(--neon-green);
+}
+
+.glow-cyan {
+  color: var(--neon-cyan);
+  text-shadow: 0 0 10px var(--neon-cyan), 0 0 20px var(--neon-cyan);
+}
+
+.glow-pink {
+  color: var(--neon-pink);
+  text-shadow: 0 0 10px var(--neon-pink), 0 0 20px var(--neon-pink);
+}
+
+/* Animaciones globales */
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes flicker {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
+  75% {
+    opacity: 0.9;
+  }
+}
+
+.pulse {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.flicker {
+  animation: flicker 0.3s ease-in-out infinite;
+}
+
+/* Utilidades */
+.text-center {
+  text-align: center;
+}
+
+.mb-1 {
+  margin-bottom: 8px;
+}
+
+.mb-2 {
+  margin-bottom: 16px;
+}
+
+.mb-3 {
+  margin-bottom: 24px;
+}
+
+.mt-1 {
+  margin-top: 8px;
+}
+
+.mt-2 {
+  margin-top: 16px;
+}
+
+.mt-3 {
+  margin-top: 24px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  body {
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 480px) {
+  body {
+    font-size: 12px;
+  }
+}
+
+/* Pixel art rendering */
+img {
+  image-rendering: -moz-crisp-edges;
+  image-rendering: -webkit-crisp-edges;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+/* Animación de carga */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in {
+  animation: fadeIn 0.5s ease-out;
+}
+
+/* Overlay oscuro para modales */
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.9);
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+}
