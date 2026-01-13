@@ -115,6 +115,15 @@ onMounted(async () => {
   // Cargar jugadores iniciales
   await loadPlayers();
 
+  // Pedir permiso al primer click (igual que el audio)
+  document.addEventListener(
+    "click",
+    () => {
+      requestDesktopPermission();
+    },
+    { once: true }
+  );
+
   // Suscribirse a cambios en jugadores
   playersSubscription = subscribeToPlayers(() => {
     loadPlayers();
@@ -136,6 +145,21 @@ onUnmounted(() => {
   }
 });
 
+function canNotify() {
+  return "Notification" in window;
+}
+
+// Solicitar permiso de notificaciones de escritorio
+async function requestDesktopPermission() {
+  if (!canNotify()) return false;
+
+  if (Notification.permission === "granted") return true;
+
+
+  const permission = await Notification.requestPermission();
+  return permission === "granted";
+}
+
 async function loadPlayers() {
   players.value = await getPlayers();
 }
@@ -153,6 +177,9 @@ function handleDeathEvent(payload) {
 
     // Reproducir sonido de daño
     playDamageSound(currentLives);
+
+    // Función para enviar notificación de escritorio
+    sendDesktopNotification("💀 ¡Vida perdida!", payload.new.reason);
 
     const id = ++notificationId;
     const notification = {
@@ -227,6 +254,19 @@ function playDamageSound(currentLives = 0) {
   }
 }
 
+
+
+function sendDesktopNotification(title,body){
+  if(!("Notification" in window)) return;
+
+  if (document.visibilityState === "visible") return;
+
+  if(Notification.permission!=="granted") return;
+
+  new Notification(title,{
+    body
+  });
+}
 function playSyntheticSound() {
   try {
     // Verificar que AudioContext esté inicializado (requiere clic del usuario)
