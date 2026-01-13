@@ -13,11 +13,7 @@
         { 'game-over-image': player.lives === 0 },
       ]"
     >
-      <img
-        :src="player.image_url"
-        :alt="player.nickname"
-        class="player-image"
-      />
+      <img :src="player.image_url" :alt="displayName" class="player-image" />
       <span v-if="player.lives === 0" class="death-mark">✗</span>
     </div>
     <div
@@ -34,7 +30,7 @@
     <!-- Contenido a la derecha -->
     <div class="player-content">
       <div class="player-header">
-        <h3 class="player-nickname">{{ player.nickname }}</h3>
+        <h3 class="player-nickname">{{ displayName }}</h3>
         <span v-if="player.lives === 0" class="game-over-badge">GAME OVER</span>
       </div>
 
@@ -48,9 +44,10 @@
 </template>
 
 <script setup>
+import { computed } from "vue";
 import HeartsBar from "./HeartsBar.vue";
 
-defineProps({
+const props = defineProps({
   player: {
     type: Object,
     required: true,
@@ -59,6 +56,13 @@ defineProps({
     type: Boolean,
     default: false,
   },
+});
+
+const displayName = computed(() => {
+  const first = props.player?.first_name?.trim?.() || "";
+  const last = props.player?.last_name?.trim?.() || "";
+  const full = `${first} ${last}`.trim();
+  return full || props.player?.nickname || "Jugador";
 });
 
 function formatDate(dateString) {

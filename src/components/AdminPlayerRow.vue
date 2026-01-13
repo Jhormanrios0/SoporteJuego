@@ -1,7 +1,7 @@
 <template>
   <div class="admin-player-row">
     <div class="player-info">
-      <span class="player-name">{{ player.nickname }}</span>
+      <span class="player-name">{{ displayName }}</span>
       <HeartsBar :lives="player.lives" :max-lives="player.max_lives || 12" />
     </div>
 
@@ -69,7 +69,7 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
+import { ref, computed } from "vue";
 import { Trash2 } from "lucide-vue-next";
 import HeartsBar from "./HeartsBar.vue";
 
@@ -81,6 +81,13 @@ const props = defineProps({
 });
 
 const emit = defineEmits(["remove-lives", "reset", "delete"]);
+
+const displayName = computed(() => {
+  const first = props.player?.first_name?.trim?.() || "";
+  const last = props.player?.last_name?.trim?.() || "";
+  const full = `${first} ${last}`.trim();
+  return full || props.player?.nickname || "Jugador";
+});
 
 const customAmount = ref(null);
 const reason = ref("");
