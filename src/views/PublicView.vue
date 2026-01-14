@@ -21,8 +21,7 @@
         <div class="stat-item">
           <span class="stat-label">En riesgo:</span>
           <span class="stat-value danger">{{
-            players.filter((p) => p.lives <= 3).length
-          }}</span>
+            players.filter((p) => p.lives <= 3).length}}</span>
         </div>
       </div>
     </header>
@@ -132,6 +131,12 @@
 
     <!-- Notificaciones de muerte -->
     <DeathNotification :notifications="deathNotifications" />
+
+    <!-- Reglas -->
+    <button class="book-button" @click="rulesVisible = !rulesVisible">
+      <img src="/icons/book.png" alt="Reglas">
+    </button>
+    <Rules v-if="rulesVisible" @close="rulesVisible = false" />
   </div>
 </template>
 
@@ -152,7 +157,7 @@ import {
 } from "@/services/supabase";
 import PlayerCard from "@/components/PlayerCard.vue";
 import DeathNotification from "@/components/DeathNotification.vue";
-import GameOverBanner from "@/components/GameOverBanner.vue";
+import Rules from "@/components/Rules.vue";
 import hahaDamageSound from "@/assets/audio/hahaDamage.mp3";
 import minecraftDamageSound from "@/assets/audio/MinecraftDamage.mp3";
 import {
@@ -168,6 +173,7 @@ let notificationId = 0;
 let playersSubscription = null;
 let eventsSubscription = null;
 let audioContext = null;
+let rulesVisible = ref(false);
 
 // Auth usuario
 const authUser = ref(null);
@@ -665,19 +671,13 @@ function onKeydown(e) {
 <style scoped>
 .public-view {
   min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  padding: clamp(16px, 2.2vw, 26px) clamp(12px, 3vw, 30px);
-  background: radial-gradient(
-      circle at 20% 50%,
+  padding: 20px;
+  background: radial-gradient(circle at 20% 50%,
       rgba(247, 65, 143, 0.15) 0%,
-      transparent 50%
-    ),
-    radial-gradient(
-      circle at 80% 80%,
+      transparent 50%),
+    radial-gradient(circle at 80% 80%,
       rgba(0, 255, 194, 0.1) 0%,
-      transparent 50%
-    ),
+      transparent 50%),
     linear-gradient(180deg, #000000 0%, #0a0020 50%, #000000 100%);
   position: relative;
 }
@@ -690,13 +690,11 @@ function onKeydown(e) {
   left: 0;
   width: 100%;
   height: 100%;
-  background: repeating-linear-gradient(
-    0deg,
-    rgba(0, 0, 0, 0.15),
-    rgba(0, 0, 0, 0.15) 1px,
-    transparent 1px,
-    transparent 2px
-  );
+  background: repeating-linear-gradient(0deg,
+      rgba(0, 0, 0, 0.15),
+      rgba(0, 0, 0, 0.15) 1px,
+      transparent 1px,
+      transparent 2px);
   pointer-events: none;
   z-index: 1;
 }
@@ -707,12 +705,10 @@ function onKeydown(e) {
   max-width: 1400px;
   position: relative;
   z-index: 2;
-  background: linear-gradient(
-    180deg,
-    rgba(247, 65, 143, 0.1) 0%,
-    transparent 100%
-  );
-  padding: clamp(20px, 4.2vw, 42px) clamp(12px, 2.8vw, 22px);
+  background: linear-gradient(180deg,
+      rgba(247, 65, 143, 0.1) 0%,
+      transparent 100%);
+  padding: 40px 20px;
   border-bottom: 3px solid rgba(247, 65, 143, 0.3);
 }
 
@@ -727,14 +723,12 @@ function onKeydown(e) {
   left: 0;
   right: 0;
   height: 2px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    #f7418f 20%,
-    #00ffc2 50%,
-    #f7418f 80%,
-    transparent
-  );
+  background: linear-gradient(90deg,
+      transparent,
+      #f7418f 20%,
+      #00ffc2 50%,
+      #f7418f 80%,
+      transparent);
   animation: lineGlow 2s ease-in-out infinite;
 }
 
@@ -772,11 +766,13 @@ function onKeydown(e) {
 }
 
 @keyframes titlePulse {
+
   0%,
   100% {
     transform: scale(1);
     filter: brightness(1);
   }
+
   50% {
     transform: scale(1.05);
     filter: brightness(1.2);
@@ -784,10 +780,12 @@ function onKeydown(e) {
 }
 
 @keyframes lineGlow {
+
   0%,
   100% {
     text-shadow: 0 0 20px rgba(0, 255, 136, 1), 0 0 40px rgba(0, 255, 136, 0.6);
   }
+
   50% {
     text-shadow: 0 0 30px rgba(0, 255, 255, 1), 0 0 60px rgba(0, 255, 255, 0.8);
   }
@@ -800,10 +798,12 @@ function onKeydown(e) {
 }
 
 @keyframes float {
+
   0%,
   100% {
     transform: translateY(0px);
   }
+
   50% {
     transform: translateY(-10px);
   }
@@ -862,10 +862,12 @@ function onKeydown(e) {
 }
 
 @keyframes dangerPulse {
+
   0%,
   100% {
     opacity: 1;
   }
+
   50% {
     opacity: 0.6;
   }
@@ -1131,17 +1133,29 @@ function onKeydown(e) {
   }
 }
 
-@media (max-width: 420px) {
-  .title-icon {
-    display: none;
-  }
+.book-button {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  width: 50px;
+  height: 50px;
+  border: none;
+  background-color: #fa9393;
+  border-radius: 10px;
+  padding: 5px;
+  cursor: pointer;
+  z-index: 1000;
+}
 
-  .stats-bar {
-    padding: 14px;
-  }
+.book-button img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
 
-  .stat-value {
-    font-size: 1.5rem;
-  }
+.book-button:hover {
+  background-color: #ffb3b3;
+  transform: scale(1.05);
+  transition: transform 0.2s;
 }
 </style>
