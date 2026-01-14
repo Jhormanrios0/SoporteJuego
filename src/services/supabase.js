@@ -110,6 +110,28 @@ export async function getPlayers() {
 }
 
 /**
+ * Obtiene un jugador por id (lectura pública)
+ * @param {number} playerId
+ * @returns {Promise<object|null>}
+ */
+export async function getPlayerById(playerId) {
+  if (!playerId && playerId !== 0) return null;
+
+  const { data, error } = await supabase
+    .from("players")
+    .select("*")
+    .eq("id", playerId)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Error al obtener jugador:", error);
+    return null;
+  }
+
+  return data || null;
+}
+
+/**
  * Suscripción en tiempo real a cambios en players
  * @param {Function} callback
  * @returns {RealtimeChannel}

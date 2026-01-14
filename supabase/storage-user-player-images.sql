@@ -1,10 +1,3 @@
--- ==================== STORAGE: IMÁGENES SUBIDAS POR USUARIO ====================
--- Ejecutar este script en el SQL Editor de Supabase (después de create-storage-bucket.sql)
--- Requiere que el upload use la ruta: `${auth.uid()}/<archivo>`
--- (el frontend ya sube como: `${userId}/${fileName}`)
--- ============================================================================
-
--- Permitir que usuarios autenticados suban su propia imagen (solo dentro de su carpeta UID)
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -23,8 +16,6 @@ BEGIN
       );
   END IF;
 END $$;
-
--- Permitir que usuarios autenticados eliminen su propia imagen
 DO $$
 BEGIN
   IF NOT EXISTS (

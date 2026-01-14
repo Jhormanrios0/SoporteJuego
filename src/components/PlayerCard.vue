@@ -24,7 +24,9 @@
       ]"
     >
       <span v-if="player.lives === 0" class="death-mark">✗</span>
-      <span v-else class="placeholder-icon">👤</span>
+      <span v-else class="placeholder-icon">
+        <CreeperIcon :size="60" />
+      </span>
     </div>
 
     <!-- Contenido a la derecha -->
@@ -46,6 +48,7 @@
 <script setup>
 import { computed } from "vue";
 import HeartsBar from "./HeartsBar.vue";
+import CreeperIcon from "./CreeperIcon.vue";
 
 const props = defineProps({
   player: {
@@ -123,6 +126,12 @@ function formatDate(dateString) {
   box-shadow: 0 12px 48px rgba(247, 65, 143, 0.4),
     inset 0 1px 0 rgba(247, 65, 143, 0.2), 0 0 0 1px rgba(0, 0, 0, 0.5);
   transform: translateY(-8px) scale(1.02);
+}
+
+@media (hover: none) {
+  .player-card:hover {
+    transform: none;
+  }
 }
 
 .player-content {
@@ -227,9 +236,9 @@ function formatDate(dateString) {
 
 /* IMAGEN DEL JUGADOR */
 .player-image-container {
-  width: 120px;
-  height: 120px;
-  min-width: 120px;
+  width: 160px;
+  height: 160px;
+  min-width: 160px;
   border: 2px solid #00ffc2;
   border-radius: 8px;
   overflow: hidden;
@@ -241,6 +250,7 @@ function formatDate(dateString) {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  image-rendering: pixelated;
   transition: transform 0.4s;
 }
 
@@ -249,9 +259,9 @@ function formatDate(dateString) {
 }
 
 .player-image-placeholder {
-  width: 120px;
-  height: 120px;
-  min-width: 120px;
+  width: 160px;
+  height: 160px;
+  min-width: 160px;
   border: 2px dashed #00ffc2;
   border-radius: 8px;
   background: rgba(0, 255, 194, 0.05);
@@ -262,8 +272,21 @@ function formatDate(dateString) {
 }
 
 .placeholder-icon {
-  font-size: 2.5rem;
-  opacity: 0.3;
+  opacity: 0.9;
+  transform: translateZ(0);
+  animation: creeperCardBob 1.6s ease-in-out infinite;
+}
+
+@keyframes creeperCardBob {
+  0%,
+  100% {
+    transform: translateY(0);
+    filter: brightness(1);
+  }
+  50% {
+    transform: translateY(-3px);
+    filter: brightness(1.08);
+  }
 }
 
 .player-header {
@@ -282,6 +305,9 @@ function formatDate(dateString) {
   margin: 0;
   letter-spacing: 1px;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 .game-over-badge {
@@ -323,21 +349,49 @@ function formatDate(dateString) {
   .player-card {
     padding: 12px;
     flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
   }
 
   .player-image-container,
   .player-image-placeholder {
-    width: 100%;
-    height: 100px;
+    width: min(240px, 100%);
+    height: auto;
+    aspect-ratio: 1 / 1;
     min-width: unset;
+    margin: 0 auto;
+  }
+
+  .player-header {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
   }
 
   .player-nickname {
     font-size: 0.85rem;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
   }
 
   .game-over-badge {
     font-size: 0.6rem;
+  }
+}
+
+@media (max-width: 420px) {
+  .player-card {
+    padding: 10px;
+  }
+
+  .player-nickname {
+    font-size: 0.78rem;
+  }
+
+  .game-over-badge {
+    font-size: 0.55rem;
+    padding: 6px 10px;
   }
 }
 </style>

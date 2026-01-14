@@ -1,12 +1,7 @@
--- Extiende la tabla profiles para usuarios (Google login)
--- Ejecutar en el SQL editor de Supabase (después de schema.sql)
-
 ALTER TABLE public.profiles
   ADD COLUMN IF NOT EXISTS display_name TEXT,
   ADD COLUMN IF NOT EXISTS avatar_url TEXT,
   ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
-
--- Reutiliza la función update_updated_at_column() si ya existe en schema.sql
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -20,8 +15,6 @@ BEGIN
       EXECUTE FUNCTION public.update_updated_at_column();
   END IF;
 END $$;
-
--- Permitir que cada usuario actualice su propio perfil
 DO $$
 BEGIN
   IF NOT EXISTS (
