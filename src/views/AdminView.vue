@@ -44,12 +44,6 @@
           PANEL DE CONTROL
         </h1>
         <div class="admin-header-actions">
-          <button
-            @click="showCreateModal = true"
-            class="btn-header btn-create-header"
-          >
-            + Crear Jugador
-          </button>
           <button @click="showHistory = !showHistory" class="btn-header">
             {{ showHistory ? "Ver jugadores" : "Ver historial" }}
           </button>
@@ -195,12 +189,6 @@
       @confirm="handleConfirmResetPlayer"
       @cancel="showResetPlayerModal = false"
     />
-
-    <CreatePlayerModal
-      :show="showCreateModal"
-      @cancel="showCreateModal = false"
-      @create="handleCreateFromModal"
-    />
   </div>
 </template>
 
@@ -212,8 +200,8 @@ import {
   adminLogin,
   adminLogout,
   getSession,
+  getMyProfile,
   getPlayers,
-  createPlayer,
   removePlayerLives,
   resetPlayerLives,
   resetAllLives,
@@ -222,7 +210,6 @@ import {
 } from "@/services/supabase";
 import AdminPlayerRow from "@/components/AdminPlayerRow.vue";
 import ConfirmModal from "@/components/ConfirmModal.vue";
-import CreatePlayerModal from "@/components/CreatePlayerModal.vue";
 
 const router = useRouter();
 
@@ -235,7 +222,6 @@ const loading = ref(false);
 
 // Players
 const players = ref([]);
-const showCreateModal = ref(false);
 
 // History
 const showHistory = ref(false);
@@ -260,11 +246,19 @@ onMounted(async () => {
 
 async function checkAuth() {
   const session = await getSession();
-  isAuthenticated.value = !!session;
-
-  if (isAuthenticated.value) {
-    await loadData();
+  if (!session?.user) {
+    isAuthenticated.value = false;
+    return;
   }
+
+  try {
+    const profile = await getMyProfile();
+    isAuthenticated.value = !!profile?.is_admin;
+  } catch {
+    isAuthenticated.value = false;
+  }
+
+  if (isAuthenticated.value) await loadData();
 }
 
 async function loadData() {
@@ -314,6 +308,15 @@ async function handleLogin() {
 
   try {
     await adminLogin(loginEmail.value, loginPassword.value);
+    const profile = await getMyProfile();
+
+    if (!profile?.is_admin) {
+      loginError.value = "No autorizado";
+      await adminLogout();
+      isAuthenticated.value = false;
+      return;
+    }
+
     isAuthenticated.value = true;
     await loadData();
   } catch (error) {
@@ -332,17 +335,6 @@ async function handleLogout() {
     loginPassword.value = "";
   } catch (error) {
     console.error("Error logout:", error);
-  }
-}
-
-async function handleCreateFromModal(data) {
-  try {
-    await createPlayer(data.nickname, data.imageFile);
-    showCreateModal.value = false;
-    await loadData();
-  } catch (error) {
-    console.error("Error crear jugador:", error);
-    throw error;
   }
 }
 

@@ -34,17 +34,94 @@
       <!-- Estado vacío -->
       <div v-if="players.length === 0" class="empty-state">
         <p class="empty-message">No hay jugadores registrados</p>
-        <p class="empty-hint">El admin debe crear jugadores desde /admin</p>
+        <p class="empty-hint">Inicia sesión y regístrate para aparecer</p>
       </div>
     </main>
 
     <!-- Footer -->
     <footer class="arcade-footer">
-      <p class="footer-text">
-        Actualización en tiempo real •
-        <span class="footer-link" @click="goToAdmin">Admin Panel</span>
-      </p>
+      <div class="user-auth">
+        <button
+          v-if="!authUser"
+          class="user-btn"
+          :disabled="authLoading"
+          @click="openLoginModal"
+        >
+          <LogIn class="btn-icon" :size="18" />
+          <span>{{ authLoading ? "CARGANDO…" : "ENTRAR" }}</span>
+        </button>
+
+        <div v-else class="user-session">
+          <div class="user-session-text">
+            Sesión: <span class="user-session-strong">{{ userLabel }}</span>
+            <span v-if="profileNeedsRegister" class="user-session-warn">
+              • Registro pendiente
+            </span>
+          </div>
+
+          <div class="user-session-actions">
+            <button
+              v-if="profileNeedsRegister"
+              class="user-btn secondary"
+              @click="goToRegister"
+            >
+              Completar registro
+            </button>
+            <button class="user-btn danger" @click="logout">
+              Cerrar sesión
+            </button>
+          </div>
+        </div>
+
+        <p v-if="authError" class="auth-error">{{ authError }}</p>
+      </div>
     </footer>
+
+    <!-- Modal de login (VIP / Jugador) -->
+    <div
+      v-if="showLoginModal"
+      class="login-modal-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Opciones de inicio de sesión"
+      @click.self="closeLoginModal"
+    >
+      <div class="login-modal">
+        <div class="login-modal-header">
+          <div class="login-modal-title">ELIGE TU ACCESO</div>
+          <button
+            class="login-modal-close"
+            type="button"
+            aria-label="Cerrar"
+            @click="closeLoginModal"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div class="login-modal-body">
+          <p class="login-modal-subtitle">
+            VIP es para administración. Jugador entra con Google.
+          </p>
+
+          <div class="login-modal-actions">
+            <button class="user-btn secondary" type="button" @click="enterVip">
+              <Crown class="btn-icon" :size="18" />
+              <span>VIP</span>
+            </button>
+            <button
+              class="user-btn"
+              type="button"
+              :disabled="authLoading"
+              @click="enterJugador"
+            >
+              <User class="btn-icon" :size="18" />
+              <span>{{ authLoading ? "CARGANDO…" : "JUGADOR" }}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- Notificaciones de muerte -->
     <DeathNotification :notifications="deathNotifications" />
@@ -52,13 +129,18 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from "vue";
+import { ref, onMounted, onUnmounted, computed } from "vue";
 import { useRouter } from "vue-router";
-import { Gamepad2 } from "lucide-vue-next";
+import { Crown, Gamepad2, LogIn, User } from "lucide-vue-next";
 import {
   getPlayers,
   subscribeToPlayers,
   subscribeToLifeEvents,
+  getSession,
+  getMyPlayer,
+  userLoginWithGoogle,
+  userLogout,
+  supabase,
 } from "@/services/supabase";
 import PlayerCard from "@/components/PlayerCard.vue";
 import DeathNotification from "@/components/DeathNotification.vue";
@@ -72,6 +154,29 @@ let notificationId = 0;
 let playersSubscription = null;
 let eventsSubscription = null;
 let audioContext = null;
+
+// Auth usuario
+const authUser = ref(null);
+const myPlayer = ref(null);
+const authLoading = ref(false);
+const authError = ref("");
+let authSubscription = null;
+
+// Modal login
+const showLoginModal = ref(false);
+
+const userLabel = computed(() => {
+  const first = myPlayer.value?.first_name?.trim?.() || "";
+  const last = myPlayer.value?.last_name?.trim?.() || "";
+  const full = `${first} ${last}`.trim();
+  return full || authUser.value?.email || "Usuario";
+});
+
+const profileNeedsRegister = computed(() => {
+  // Registro pendiente si está autenticado pero aún no creó su jugador
+  if (!authUser.value) return false;
+  return !myPlayer.value?.id;
+});
 
 // Inicializar AudioContext cuando el usuario interactúa
 function initializeAudioContext() {
@@ -106,6 +211,8 @@ function initializeAudioContext() {
 }
 
 onMounted(async () => {
+  window.addEventListener("keydown", onKeydown);
+
   // Intentar inicializar AudioContext inmediatamente
   initializeAudioContext();
 
@@ -136,12 +243,18 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+  window.removeEventListener("keydown", onKeydown);
+
   // Limpiar suscripciones
   if (playersSubscription) {
     playersSubscription.unsubscribe();
   }
   if (eventsSubscription) {
     eventsSubscription.unsubscribe();
+  }
+
+  if (authSubscription) {
+    authSubscription.unsubscribe();
   }
 });
 
@@ -323,6 +436,12 @@ function playSyntheticSound() {
 
 function goToAdmin() {
   router.push("/admin");
+}
+
+function onKeydown(e) {
+  if (e.key === "Escape" && showLoginModal.value) {
+    closeLoginModal();
+  }
 }
 </script>
 
@@ -572,6 +691,101 @@ function goToAdmin() {
   z-index: 2;
 }
 
+.user-auth {
+  margin-top: 14px;
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+}
+
+.user-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 2px solid rgba(0, 0, 0, 0.95);
+  border-radius: 6px;
+  padding: 12px 14px;
+  font-weight: 900;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  cursor: pointer;
+  background: rgba(64, 64, 64, 0.95);
+  color: #fff;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.06),
+    inset 0 -4px 0 rgba(0, 0, 0, 0.7), 0 10px 28px rgba(0, 0, 0, 0.35);
+  transition: transform 0.08s ease, filter 0.12s ease;
+}
+
+.btn-icon {
+  flex: 0 0 auto;
+}
+
+.user-btn:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.user-btn:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.06),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.8), 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+
+.user-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.user-btn.secondary {
+  background: rgba(45, 45, 45, 0.95);
+}
+
+.user-btn.danger {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 110, 110, 0.85),
+    rgba(170, 45, 45, 0.9)
+  );
+}
+
+.user-session {
+  width: min(680px, 100%);
+  display: grid;
+  gap: 10px;
+  align-items: center;
+  justify-items: center;
+}
+
+.user-session-text {
+  color: rgba(255, 255, 255, 0.86);
+  font-weight: 700;
+  text-align: center;
+}
+
+.user-session-strong {
+  color: #00ffc2;
+  font-weight: 900;
+}
+
+.user-session-warn {
+  color: #ffda79;
+  font-weight: 900;
+}
+
+.user-session-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.auth-error {
+  margin: 0;
+  color: #ff6b6b;
+  font-weight: 800;
+  text-align: center;
+}
+
 .footer-text {
   font-family: "Press Start 2P", monospace;
   font-size: 0.75rem;
@@ -589,6 +803,88 @@ function goToAdmin() {
 .footer-link:hover {
   color: #00ff88;
   text-shadow: 0 0 8px rgba(0, 255, 136, 0.8);
+}
+
+.login-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(0, 0, 0, 0.66);
+  backdrop-filter: blur(2px);
+}
+
+.login-modal {
+  width: min(540px, 100%);
+  background: rgba(22, 22, 22, 0.92);
+  border: 4px solid rgba(0, 0, 0, 0.85);
+  border-radius: 10px;
+  box-shadow: 0 18px 55px rgba(0, 0, 0, 0.55),
+    inset 0 0 0 2px rgba(255, 255, 255, 0.06),
+    inset 0 0 0 6px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+}
+
+.login-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 14px 10px;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.08);
+}
+
+.login-modal-title {
+  font-family: "Press Start 2P", monospace;
+  color: #ffffff;
+  font-size: 0.95rem;
+  letter-spacing: 1px;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.8);
+}
+
+.login-modal-close {
+  border: 2px solid rgba(0, 0, 0, 0.95);
+  border-radius: 8px;
+  width: 42px;
+  height: 38px;
+  background: rgba(64, 64, 64, 0.95);
+  color: #fff;
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.06),
+    inset 0 -4px 0 rgba(0, 0, 0, 0.7);
+}
+
+.login-modal-close:active {
+  transform: translateY(2px);
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.06),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.8);
+}
+
+.login-modal-body {
+  padding: 14px;
+  display: grid;
+  gap: 12px;
+}
+
+.login-modal-subtitle {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.78);
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.6);
+}
+
+.login-modal-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+@media (max-width: 520px) {
+  .login-modal-actions {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 768px) {
