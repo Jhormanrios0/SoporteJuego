@@ -21,8 +21,7 @@
         <div class="stat-item">
           <span class="stat-label">En riesgo:</span>
           <span class="stat-value danger">{{
-            players.filter((p) => p.lives <= 3).length
-          }}</span>
+            players.filter((p) => p.lives <= 3).length}}</span>
         </div>
       </div>
     </header>
@@ -48,6 +47,12 @@
 
     <!-- Notificaciones de muerte -->
     <DeathNotification :notifications="deathNotifications" />
+
+    <!-- Reglas -->
+    <button class="book-button" @click="rulesVisible = !rulesVisible">
+      <img src="/icons/book.png" alt="Reglas">
+    </button>
+    <Rules v-if="rulesVisible" @close="rulesVisible = false" />
   </div>
 </template>
 
@@ -62,6 +67,7 @@ import {
 } from "@/services/supabase";
 import PlayerCard from "@/components/PlayerCard.vue";
 import DeathNotification from "@/components/DeathNotification.vue";
+import Rules from "@/components/Rules.vue";
 import hahaDamageSound from "@/assets/audio/hahaDamage.mp3";
 import minecraftDamageSound from "@/assets/audio/MinecraftDamage.mp3";
 
@@ -72,6 +78,7 @@ let notificationId = 0;
 let playersSubscription = null;
 let eventsSubscription = null;
 let audioContext = null;
+let rulesVisible = ref(false);
 
 // Inicializar AudioContext cuando el usuario interactúa
 function initializeAudioContext() {
@@ -290,16 +297,12 @@ function goToAdmin() {
 .public-view {
   min-height: 100vh;
   padding: 20px;
-  background: radial-gradient(
-      circle at 20% 50%,
+  background: radial-gradient(circle at 20% 50%,
       rgba(247, 65, 143, 0.15) 0%,
-      transparent 50%
-    ),
-    radial-gradient(
-      circle at 80% 80%,
+      transparent 50%),
+    radial-gradient(circle at 80% 80%,
       rgba(0, 255, 194, 0.1) 0%,
-      transparent 50%
-    ),
+      transparent 50%),
     linear-gradient(180deg, #000000 0%, #0a0020 50%, #000000 100%);
   position: relative;
 }
@@ -312,13 +315,11 @@ function goToAdmin() {
   left: 0;
   width: 100%;
   height: 100%;
-  background: repeating-linear-gradient(
-    0deg,
-    rgba(0, 0, 0, 0.15),
-    rgba(0, 0, 0, 0.15) 1px,
-    transparent 1px,
-    transparent 2px
-  );
+  background: repeating-linear-gradient(0deg,
+      rgba(0, 0, 0, 0.15),
+      rgba(0, 0, 0, 0.15) 1px,
+      transparent 1px,
+      transparent 2px);
   pointer-events: none;
   z-index: 1;
 }
@@ -328,11 +329,9 @@ function goToAdmin() {
   margin-bottom: 60px;
   position: relative;
   z-index: 2;
-  background: linear-gradient(
-    180deg,
-    rgba(247, 65, 143, 0.1) 0%,
-    transparent 100%
-  );
+  background: linear-gradient(180deg,
+      rgba(247, 65, 143, 0.1) 0%,
+      transparent 100%);
   padding: 40px 20px;
   border-bottom: 3px solid rgba(247, 65, 143, 0.3);
 }
@@ -348,14 +347,12 @@ function goToAdmin() {
   left: 0;
   right: 0;
   height: 2px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    #f7418f 20%,
-    #00ffc2 50%,
-    #f7418f 80%,
-    transparent
-  );
+  background: linear-gradient(90deg,
+      transparent,
+      #f7418f 20%,
+      #00ffc2 50%,
+      #f7418f 80%,
+      transparent);
   animation: lineGlow 2s ease-in-out infinite;
 }
 
@@ -393,11 +390,13 @@ function goToAdmin() {
 }
 
 @keyframes titlePulse {
+
   0%,
   100% {
     transform: scale(1);
     filter: brightness(1);
   }
+
   50% {
     transform: scale(1.05);
     filter: brightness(1.2);
@@ -405,10 +404,12 @@ function goToAdmin() {
 }
 
 @keyframes lineGlow {
+
   0%,
   100% {
     text-shadow: 0 0 20px rgba(0, 255, 136, 1), 0 0 40px rgba(0, 255, 136, 0.6);
   }
+
   50% {
     text-shadow: 0 0 30px rgba(0, 255, 255, 1), 0 0 60px rgba(0, 255, 255, 0.8);
   }
@@ -421,10 +422,12 @@ function goToAdmin() {
 }
 
 @keyframes float {
+
   0%,
   100% {
     transform: translateY(0px);
   }
+
   50% {
     transform: translateY(-10px);
   }
@@ -482,10 +485,12 @@ function goToAdmin() {
 }
 
 @keyframes dangerPulse {
+
   0%,
   100% {
     opacity: 1;
   }
+
   50% {
     opacity: 0.6;
   }
@@ -568,5 +573,31 @@ function goToAdmin() {
     grid-template-columns: 1fr;
     gap: 16px;
   }
+}
+
+.book-button {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  width: 50px;
+  height: 50px;
+  border: none;
+  background-color: #fa9393;
+  border-radius: 10px;
+  padding: 5px;
+  cursor: pointer;
+  z-index: 1000;
+}
+
+.book-button img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.book-button:hover {
+  background-color: #ffb3b3;
+  transform: scale(1.05);
+  transition: transform 0.2s;
 }
 </style>
