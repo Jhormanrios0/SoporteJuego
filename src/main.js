@@ -5,6 +5,7 @@ import PublicView from "./views/PublicView.vue";
 import AdminView from "./views/AdminView.vue";
 import AuthCallbackView from "./views/AuthCallbackView.vue";
 import UserRegisterView from "./views/UserRegisterView.vue";
+import ProfileView from "./views/ProfileView.vue";
 import "./style.css";
 
 const routes = [
@@ -27,6 +28,11 @@ const routes = [
     path: "/admin",
     name: "admin",
     component: AdminView,
+  },
+  {
+    path: "/profile",
+    name: "profile",
+    component: ProfileView,
   },
 ];
 

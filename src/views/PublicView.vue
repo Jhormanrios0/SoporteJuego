@@ -12,6 +12,71 @@
         </h1>
         <div class="title-decoration bottom"></div>
       </div>
+      <div
+        v-if="authUser"
+        ref="profileMenuEl"
+        class="profile-menu"
+        @keydown.esc.stop.prevent="closeProfileMenu"
+      >
+        <button
+          class="profile-button"
+          type="button"
+          aria-label="Menú de perfil"
+          aria-haspopup="menu"
+          :aria-expanded="profileMenuOpen ? 'true' : 'false'"
+          @click.stop="toggleProfileMenu"
+          @keydown.enter.stop.prevent="toggleProfileMenu"
+          @keydown.space.stop.prevent="toggleProfileMenu"
+        >
+          <span class="profile-avatar">
+            <img
+              v-if="myPlayer?.image_url"
+              :src="myPlayer.image_url"
+              :alt="userLabel"
+              class="profile-avatar-img"
+            />
+            <span v-else class="profile-avatar-fallback">
+              <User :size="18" />
+            </span>
+          </span>
+
+          <span class="profile-meta">
+            <span class="profile-name">{{ userLabel }}</span>
+            <span v-if="profileNeedsRegister" class="profile-sub">
+              Registro pendiente
+            </span>
+          </span>
+
+          <span class="profile-caret" aria-hidden="true">▾</span>
+        </button>
+
+        <Transition name="pixel-pop">
+          <div
+            v-show="profileMenuOpen"
+            class="profile-dropdown"
+            role="menu"
+            aria-label="Opciones de perfil"
+          >
+            <button
+              class="profile-dropdown-item"
+              type="button"
+              role="menuitem"
+              @click="handleProfileMenuProfile"
+            >
+              Perfil
+            </button>
+            <button
+              class="profile-dropdown-item danger"
+              type="button"
+              role="menuitem"
+              @click="handleProfileMenuLogout"
+            >
+              Cerrar sesión
+            </button>
+          </div>
+        </Transition>
+      </div>
+
       <p class="arcade-subtitle">SISTEMA DE VIDAS • JUGADORES ACTIVOS</p>
       <div class="stats-bar">
         <div class="stat-item">
@@ -21,7 +86,8 @@
         <div class="stat-item">
           <span class="stat-label">En riesgo:</span>
           <span class="stat-value danger">{{
-            players.filter((p) => p.lives <= 3).length}}</span>
+            players.filter((p) => p.lives <= 3).length
+          }}</span>
         </div>
       </div>
     </header>
@@ -38,7 +104,7 @@
     </main>
 
     <!-- Footer -->
-    <footer class="arcade-footer">
+    <footer class="arcade-footer" v-if="!authUser || authError">
       <div class="user-auth">
         <button
           v-if="!authUser"
@@ -49,28 +115,6 @@
           <LogIn class="btn-icon" :size="18" />
           <span>{{ authLoading ? "CARGANDO…" : "ENTRAR" }}</span>
         </button>
-
-        <div v-else class="user-session">
-          <div class="user-session-text">
-            Sesión: <span class="user-session-strong">{{ userLabel }}</span>
-            <span v-if="profileNeedsRegister" class="user-session-warn">
-              • Registro pendiente
-            </span>
-          </div>
-
-          <div class="user-session-actions">
-            <button
-              v-if="profileNeedsRegister"
-              class="user-btn secondary"
-              @click="goToRegister"
-            >
-              Completar registro
-            </button>
-            <button class="user-btn danger" @click="logout">
-              Cerrar sesión
-            </button>
-          </div>
-        </div>
 
         <p v-if="authError" class="auth-error">{{ authError }}</p>
       </div>
@@ -134,7 +178,7 @@
 
     <!-- Reglas -->
     <button class="book-button" @click="rulesVisible = !rulesVisible">
-      <img src="/icons/book.png" alt="Reglas">
+      <img :src="bookIconUrl" alt="Reglas" />
     </button>
     <Rules v-if="rulesVisible" @close="rulesVisible = false" />
   </div>
@@ -167,6 +211,7 @@ import {
 } from "@/services/desktopNotifications";
 
 const router = useRouter();
+const bookIconUrl = "/icons/book.png";
 const players = ref([]);
 const deathNotifications = ref([]);
 let notificationId = 0;
@@ -181,6 +226,10 @@ const myPlayer = ref(null);
 const authLoading = ref(false);
 const authError = ref("");
 let authSubscription = null;
+
+// Menú de perfil (dropdown)
+const profileMenuOpen = ref(false);
+const profileMenuEl = ref(null);
 
 // Modal login
 const showLoginModal = ref(false);
@@ -297,11 +346,41 @@ async function logout() {
   }
 }
 
+function toggleProfileMenu() {
+  profileMenuOpen.value = !profileMenuOpen.value;
+}
+
+function closeProfileMenu() {
+  profileMenuOpen.value = false;
+}
+
+function onDocumentClick(e) {
+  if (!profileMenuOpen.value) return;
+  const container = profileMenuEl.value;
+  if (!container) return;
+  if (container.contains(e.target)) return;
+  closeProfileMenu();
+}
+
+function handleProfileMenuProfile() {
+  closeProfileMenu();
+  goToProfile();
+}
+
+async function handleProfileMenuLogout() {
+  closeProfileMenu();
+  await logout();
+}
+
 function goToRegister() {
   router.push({
     name: "register",
     query: { email: authUser.value?.email || "" },
   });
+}
+
+function goToProfile() {
+  router.push({ name: "profile" });
 }
 
 // Inicializar AudioContext cuando el usuario interactúa
@@ -338,6 +417,7 @@ function initializeAudioContext() {
 
 onMounted(async () => {
   window.addEventListener("keydown", onKeydown);
+  document.addEventListener("click", onDocumentClick);
 
   // Intentar inicializar AudioContext inmediatamente
   initializeAudioContext();
@@ -394,6 +474,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   window.removeEventListener("keydown", onKeydown);
+  document.removeEventListener("click", onDocumentClick);
 
   // Limpiar suscripciones
   if (playersSubscription) {
@@ -665,6 +746,10 @@ function onKeydown(e) {
   if (e.key === "Escape" && showLoginModal.value) {
     closeLoginModal();
   }
+
+  if (e.key === "Escape" && profileMenuOpen.value) {
+    closeProfileMenu();
+  }
 }
 </script>
 
@@ -672,12 +757,16 @@ function onKeydown(e) {
 .public-view {
   min-height: 100vh;
   padding: 20px;
-  background: radial-gradient(circle at 20% 50%,
+  background: radial-gradient(
+      circle at 20% 50%,
       rgba(247, 65, 143, 0.15) 0%,
-      transparent 50%),
-    radial-gradient(circle at 80% 80%,
+      transparent 50%
+    ),
+    radial-gradient(
+      circle at 80% 80%,
       rgba(0, 255, 194, 0.1) 0%,
-      transparent 50%),
+      transparent 50%
+    ),
     linear-gradient(180deg, #000000 0%, #0a0020 50%, #000000 100%);
   position: relative;
 }
@@ -690,11 +779,13 @@ function onKeydown(e) {
   left: 0;
   width: 100%;
   height: 100%;
-  background: repeating-linear-gradient(0deg,
-      rgba(0, 0, 0, 0.15),
-      rgba(0, 0, 0, 0.15) 1px,
-      transparent 1px,
-      transparent 2px);
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.15),
+    rgba(0, 0, 0, 0.15) 1px,
+    transparent 1px,
+    transparent 2px
+  );
   pointer-events: none;
   z-index: 1;
 }
@@ -705,11 +796,214 @@ function onKeydown(e) {
   max-width: 1400px;
   position: relative;
   z-index: 2;
-  background: linear-gradient(180deg,
-      rgba(247, 65, 143, 0.1) 0%,
-      transparent 100%);
+  background: linear-gradient(
+    180deg,
+    rgba(247, 65, 143, 0.1) 0%,
+    transparent 100%
+  );
   padding: 40px 20px;
   border-bottom: 3px solid rgba(247, 65, 143, 0.3);
+}
+
+.profile-menu {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 3;
+  display: inline-block;
+  max-width: min(320px, calc(100% - 24px));
+}
+
+.profile-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 2px solid rgba(0, 255, 194, 0.7);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.65);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35),
+    inset 0 0 0 2px rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.92);
+  width: auto;
+  max-width: min(320px, calc(100vw - 24px));
+}
+
+.profile-button:hover {
+  filter: brightness(1.08);
+}
+
+.profile-button:active {
+  transform: translateY(2px);
+}
+
+.profile-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  border: 2px solid rgba(0, 255, 194, 0.6);
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.6);
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+}
+
+.profile-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  image-rendering: pixelated;
+}
+
+.profile-avatar-fallback {
+  color: #00ffc2;
+  filter: drop-shadow(0 0 8px rgba(0, 255, 194, 0.45));
+}
+
+.profile-meta {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  text-align: left;
+}
+
+.profile-caret {
+  margin-left: auto;
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.7rem;
+  color: rgba(0, 255, 194, 0.95);
+  text-shadow: 0 0 10px rgba(0, 255, 194, 0.55);
+  transition: transform 140ms ease;
+}
+
+.profile-button[aria-expanded="true"] .profile-caret {
+  transform: rotate(180deg);
+}
+
+.profile-dropdown {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  min-width: 100%;
+  border: 2px solid rgba(0, 255, 194, 0.55);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.82);
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.45),
+    inset 0 0 0 2px rgba(255, 255, 255, 0.05);
+  padding: 10px;
+}
+
+.profile-dropdown::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.12),
+    rgba(0, 0, 0, 0.12) 2px,
+    transparent 2px,
+    transparent 4px
+  );
+  opacity: 0.45;
+}
+
+.profile-dropdown > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Animación retro (pixel-pop) */
+.pixel-pop-enter-active {
+  animation: pixelPopIn 180ms cubic-bezier(0.2, 0.9, 0.2, 1) both;
+  transform-origin: top right;
+}
+
+.pixel-pop-leave-active {
+  animation: pixelPopOut 120ms ease-in both;
+  transform-origin: top right;
+}
+
+@keyframes pixelPopIn {
+  0% {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+    filter: brightness(0.9);
+  }
+  70% {
+    opacity: 1;
+    transform: translateY(0) scale(1.02);
+    filter: brightness(1.1);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: brightness(1);
+  }
+}
+
+@keyframes pixelPopOut {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+
+.profile-dropdown-item {
+  width: 100%;
+  text-align: left;
+  border: 2px solid rgba(0, 255, 194, 0.45);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.55);
+  color: rgba(255, 255, 255, 0.92);
+  padding: 10px 12px;
+  cursor: pointer;
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.profile-dropdown-item + .profile-dropdown-item {
+  margin-top: 10px;
+}
+
+.profile-dropdown-item:hover {
+  filter: brightness(1.1);
+}
+
+.profile-dropdown-item:active {
+  transform: translateY(2px);
+}
+
+.profile-dropdown-item.danger {
+  border-color: rgba(247, 65, 143, 0.65);
+  color: #ffd1e6;
+  box-shadow: inset 0 0 0 2px rgba(247, 65, 143, 0.12);
+}
+
+.profile-name {
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.62rem;
+  color: #00ffc2;
+  text-shadow: 0 0 10px rgba(0, 255, 194, 0.55);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 230px;
+}
+
+.profile-sub {
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.52rem;
+  color: #ffda79;
 }
 
 .title-container {
@@ -723,12 +1017,14 @@ function onKeydown(e) {
   left: 0;
   right: 0;
   height: 2px;
-  background: linear-gradient(90deg,
-      transparent,
-      #f7418f 20%,
-      #00ffc2 50%,
-      #f7418f 80%,
-      transparent);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    #f7418f 20%,
+    #00ffc2 50%,
+    #f7418f 80%,
+    transparent
+  );
   animation: lineGlow 2s ease-in-out infinite;
 }
 
@@ -766,7 +1062,6 @@ function onKeydown(e) {
 }
 
 @keyframes titlePulse {
-
   0%,
   100% {
     transform: scale(1);
@@ -780,7 +1075,6 @@ function onKeydown(e) {
 }
 
 @keyframes lineGlow {
-
   0%,
   100% {
     text-shadow: 0 0 20px rgba(0, 255, 136, 1), 0 0 40px rgba(0, 255, 136, 0.6);
@@ -798,7 +1092,6 @@ function onKeydown(e) {
 }
 
 @keyframes float {
-
   0%,
   100% {
     transform: translateY(0px);
@@ -862,7 +1155,6 @@ function onKeydown(e) {
 }
 
 @keyframes dangerPulse {
-
   0%,
   100% {
     opacity: 1;
@@ -1130,6 +1422,15 @@ function onKeydown(e) {
   .players-grid {
     grid-template-columns: 1fr;
     gap: 16px;
+  }
+
+  .profile-menu {
+    top: 10px;
+    right: 10px;
+  }
+
+  .profile-name {
+    max-width: 220px;
   }
 }
 
