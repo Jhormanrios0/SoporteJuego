@@ -1,9 +1,3 @@
--- ==================== AGREGAR MENSAJES DE MUERTE DE MINECRAFT ====================
--- Ejecutar este script en el SQL Editor de Supabase
--- Esto modifica la función admin_remove_lives para generar mensajes aleatorios de Minecraft
--- ====================================================================================
-
--- FUNCIÓN: Quitar vidas a un jugador CON MENSAJE DE MUERTE ALEATORIO
 CREATE OR REPLACE FUNCTION admin_remove_lives(
     p_player_id BIGINT,
     p_amount INTEGER,
@@ -51,7 +45,6 @@ DECLARE
         'fue golpeado hasta morir'
     ];
 BEGIN
-    -- Verificar que el usuario es admin
     IF NOT EXISTS (
         SELECT 1 FROM profiles
         WHERE id = auth.uid() AND is_admin = true
@@ -59,7 +52,6 @@ BEGIN
         RAISE EXCEPTION 'No autorizado: solo admin puede ejecutar esta función';
     END IF;
 
-    -- Obtener vidas actuales y nickname
     SELECT lives, nickname INTO current_lives, player_nickname
     FROM players
     WHERE id = p_player_id;
@@ -68,22 +60,18 @@ BEGIN
         RAISE EXCEPTION 'Jugador no encontrado';
     END IF;
 
-    -- Calcular nuevas vidas (nunca menor a 0)
     new_lives := GREATEST(current_lives - p_amount, 0);
 
-    -- Actualizar jugador
     UPDATE players
     SET lives = new_lives
     WHERE id = p_player_id;
 
-    -- Generar mensaje de muerte aleatorio (solo si se quitan vidas)
     IF p_amount > 0 THEN
         death_message := player_nickname || ' ' || death_messages[1 + floor(random() * array_length(death_messages, 1))::int];
     ELSE
         death_message := p_reason;
     END IF;
 
-    -- Registrar evento con mensaje de muerte
     INSERT INTO life_events (player_id, admin_id, delta, reason)
     VALUES (p_player_id, auth.uid(), -p_amount, death_message);
 END;

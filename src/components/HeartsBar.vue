@@ -61,9 +61,12 @@ function getHeartColor(heartIndex) {
 
 <style scoped>
 .hearts-container {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  align-items: start;
+  justify-items: start;
+  min-width: 0;
 }
 
 .hearts-counter {
@@ -71,27 +74,31 @@ function getHeartColor(heartIndex) {
   font-size: 1rem;
   color: #00ff88;
   text-shadow: 0 0 8px rgba(0, 255, 136, 0.8);
-  min-width: 80px;
 }
 
 .hearts-bar {
-  display: flex;
-  flex-wrap: wrap;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 4px;
-  max-width: 164px;
+  align-items: center;
+  justify-items: center;
 }
 
 .heart-pixel {
-  width: 24px;
-  height: 24px;
+  width: 100%;
+  max-width: 24px;
+  aspect-ratio: 1 / 1;
+  height: auto;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
   transition: all 0.3s ease;
 }
 
 .heart-pixel.heart-lost {
-  opacity: 0.3;
-  filter: grayscale(100%);
+  opacity: 0.75;
+  filter: grayscale(100%) brightness(0.75) contrast(1.15)
+    drop-shadow(0 0 6px rgba(180, 180, 180, 0.25));
 }
 
 .heart-pixel:not(.heart-lost) {
@@ -109,10 +116,18 @@ function getHeartColor(heartIndex) {
 }
 
 @media (max-width: 768px) {
+  .hearts-bar {
+    width: min(360px, 100%);
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 6px;
+  }
+
   .hearts-container {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
+    justify-items: center;
+  }
+
+  .hearts-counter {
+    text-align: center;
   }
 
   .hearts-counter {
@@ -120,8 +135,23 @@ function getHeartColor(heartIndex) {
   }
 
   .heart-pixel {
-    width: 20px;
-    height: 20px;
+    max-width: clamp(26px, 7.4vw, 38px);
+  }
+}
+
+@media (max-width: 420px) {
+  .hearts-counter {
+    font-size: 0.8rem;
+  }
+
+  .hearts-bar {
+    width: min(340px, 100%);
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 5px;
+  }
+
+  .heart-pixel {
+    max-width: clamp(24px, 8.4vw, 36px);
   }
 }
 </style>

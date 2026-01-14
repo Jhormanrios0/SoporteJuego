@@ -123,6 +123,13 @@
       </div>
     </div>
 
+    <GameOverBanner
+      :show="gameOverVisible"
+      :playerName="gameOverPlayerName"
+      :cause="gameOverCause"
+      @close="hideGameOver"
+    />
+
     <!-- Notificaciones de muerte -->
     <DeathNotification :notifications="deathNotifications" />
   </div>
@@ -134,6 +141,7 @@ import { useRouter } from "vue-router";
 import { Crown, Gamepad2, LogIn, User } from "lucide-vue-next";
 import {
   getPlayers,
+  getPlayerById,
   subscribeToPlayers,
   subscribeToLifeEvents,
   getSession,
@@ -144,8 +152,14 @@ import {
 } from "@/services/supabase";
 import PlayerCard from "@/components/PlayerCard.vue";
 import DeathNotification from "@/components/DeathNotification.vue";
+import GameOverBanner from "@/components/GameOverBanner.vue";
 import hahaDamageSound from "@/assets/audio/hahaDamage.mp3";
 import minecraftDamageSound from "@/assets/audio/MinecraftDamage.mp3";
+import {
+  requestDesktopNotificationsPermission,
+  showDesktopNotification,
+  canUseDesktopNotifications,
+} from "@/services/desktopNotifications";
 
 const router = useRouter();
 const players = ref([]);
@@ -164,6 +178,44 @@ let authSubscription = null;
 
 // Modal login
 const showLoginModal = ref(false);
+
+// Game Over banner (global)
+const gameOverVisible = ref(false);
+const gameOverPlayerName = ref("");
+const gameOverCause = ref("");
+const gameOverQueue = [];
+let gameOverTimer = null;
+
+// Desktop notifications
+let requestedDesktopNotifications = false;
+
+function requestDesktopNotificationsOnce() {
+  if (!canUseDesktopNotifications()) return;
+  if (requestedDesktopNotifications) return;
+  requestedDesktopNotifications = true;
+  requestDesktopNotificationsPermission().catch(() => {
+    // noop
+  });
+}
+
+function maybeNotifyDesktopDeath(message) {
+  // En desktop, normalmente se desea cuando está en segundo plano
+  if (!document.hidden) return;
+  showDesktopNotification({
+    title: "MUERTE",
+    body: message,
+    tag: "life-event",
+  });
+}
+
+function notifyDesktopGameOver(playerName, cause) {
+  showDesktopNotification({
+    title: "GAME OVER",
+    body: `${playerName}: ${cause}`,
+    tag: `game-over-${playerName}`,
+    requireInteraction: true,
+  });
+}
 
 const userLabel = computed(() => {
   const first = myPlayer.value?.first_name?.trim?.() || "";
@@ -218,6 +270,11 @@ onMounted(async () => {
 
   // También agregarlo como listener de respaldo
   document.addEventListener("click", initializeAudioContext, { once: true });
+
+  // Pedir permiso de notificaciones con gesto de usuario (click)
+  document.addEventListener("click", requestDesktopNotificationsOnce, {
+    once: true,
+  });
 
   // Cargar jugadores iniciales
   await loadPlayers();
@@ -342,24 +399,36 @@ function handleDeathEvent(payload) {
   console.log("[Events] Evento recibido:", payload);
 
   // Solo mostrar notificaciones cuando se quitan vidas (delta negativo)
-  if (payload.new && payload.new.delta < 0 && payload.new.reason) {
+  if (payload?.new && payload.new.delta < 0) {
     console.log("[Audio] Reproduciendo sonido de daño...");
 
-    // Buscar las vidas actuales del jugador
-    const player = players.value.find((p) => p.id === payload.new.player_id);
-    const currentLives = player ? player.lives : 0;
+    const event = payload.new;
 
-    // Reproducir sonido de daño
-    playDamageSound(currentLives);
+    const localPlayer =
+      players.value.find((p) => p.id === event.player_id) || null;
+    const localLives = localPlayer ? localPlayer.lives : 0;
+
+    // Reproducir sonido de daño (sin esperar red)
+    playDamageSound(localLives);
 
     const id = ++notificationId;
+
+    const amount = Math.abs(Number(event.delta || 0)) || 1;
+    const playerName = getPlayerDisplayName(localPlayer);
+    const message =
+      String(event.reason || "").trim() ||
+      `${playerName} perdió ${amount} vida${amount === 1 ? "" : "s"}`;
+
     const notification = {
       id,
-      message: payload.new.reason,
+      message,
       index: deathNotifications.value.length,
     };
 
     deathNotifications.value.push(notification);
+
+    // Notificación del sistema (Windows) en segundo plano
+    maybeNotifyDesktopDeath(message);
 
     // Actualizar índices
     deathNotifications.value.forEach((notif, idx) => {
@@ -377,7 +446,71 @@ function handleDeathEvent(payload) {
         });
       }
     }, 5000);
+
+    // Banner global SOLO si el jugador llegó a 0 vidas (sin bloquear alerts/sonidos)
+    getPlayerById(event.player_id)
+      .then((fresh) => {
+        const livesAfter =
+          typeof fresh?.lives === "number" ? fresh.lives : null;
+        if (livesAfter === 0) {
+          const name = getPlayerDisplayName(fresh || localPlayer);
+          enqueueGameOver(name, message);
+          notifyDesktopGameOver(name, message);
+        }
+      })
+      .catch(() => {
+        // noop
+      });
   }
+}
+
+function getPlayerDisplayName(player) {
+  if (!player) return "Jugador";
+  const first = player?.first_name?.trim?.() || "";
+  const last = player?.last_name?.trim?.() || "";
+  const full = `${first} ${last}`.trim();
+  return full || player?.nickname || "Jugador";
+}
+
+function enqueueGameOver(playerName, cause) {
+  gameOverQueue.push({
+    playerName: String(playerName || "Jugador"),
+    cause: String(cause || ""),
+  });
+  if (!gameOverVisible.value) {
+    showNextGameOver();
+  }
+}
+
+function showNextGameOver() {
+  const next = gameOverQueue.shift();
+  if (!next) return;
+
+  gameOverPlayerName.value = next.playerName;
+  gameOverCause.value = next.cause;
+  gameOverVisible.value = true;
+
+  if (gameOverTimer) clearTimeout(gameOverTimer);
+  gameOverTimer = setTimeout(() => {
+    hideGameOver();
+  }, 5200);
+}
+
+function hideGameOver() {
+  if (gameOverTimer) {
+    clearTimeout(gameOverTimer);
+    gameOverTimer = null;
+  }
+
+  if (!gameOverVisible.value) return;
+  gameOverVisible.value = false;
+
+  // esperar la animación de salida
+  setTimeout(() => {
+    if (!gameOverVisible.value) {
+      showNextGameOver();
+    }
+  }, 360);
 }
 
 function playDamageSound(currentLives = 0) {
@@ -493,7 +626,9 @@ function onKeydown(e) {
 <style scoped>
 .public-view {
   min-height: 100vh;
-  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  padding: clamp(16px, 2.2vw, 26px) clamp(12px, 3vw, 30px);
   background: radial-gradient(
       circle at 20% 50%,
       rgba(247, 65, 143, 0.15) 0%,
@@ -529,7 +664,8 @@ function onKeydown(e) {
 
 .arcade-header {
   text-align: center;
-  margin-bottom: 60px;
+  margin: 0 auto clamp(22px, 4vw, 60px);
+  max-width: 1400px;
   position: relative;
   z-index: 2;
   background: linear-gradient(
@@ -537,14 +673,14 @@ function onKeydown(e) {
     rgba(247, 65, 143, 0.1) 0%,
     transparent 100%
   );
-  padding: 40px 20px;
+  padding: clamp(20px, 4.2vw, 42px) clamp(12px, 2.8vw, 22px);
   border-bottom: 3px solid rgba(247, 65, 143, 0.3);
 }
 
 .title-container {
   position: relative;
   display: inline-block;
-  padding: 20px 40px;
+  padding: clamp(14px, 3.2vw, 20px) clamp(16px, 4.2vw, 40px);
 }
 
 .title-decoration {
@@ -573,12 +709,12 @@ function onKeydown(e) {
 
 .arcade-title {
   font-family: "Press Start 2P", monospace;
-  font-size: 2rem;
+  font-size: clamp(1.1rem, 2.6vw, 2rem);
   margin: 0;
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 20px;
+  gap: clamp(10px, 2vw, 20px);
   flex-wrap: wrap;
 }
 
@@ -636,23 +772,24 @@ function onKeydown(e) {
 
 .arcade-subtitle {
   font-family: "Press Start 2P", monospace;
-  font-size: 0.85rem;
+  font-size: clamp(0.65rem, 1.35vw, 0.85rem);
   color: #00ffc2;
   text-shadow: 0 0 10px rgba(0, 255, 194, 0.8);
   margin: 20px 0;
-  letter-spacing: 3px;
+  letter-spacing: clamp(1px, 0.6vw, 3px);
 }
 
 .stats-bar {
   display: flex;
   justify-content: center;
-  gap: 40px;
+  flex-wrap: wrap;
+  gap: clamp(14px, 3vw, 40px);
   margin-top: 30px;
   padding: 20px;
   background: rgba(0, 0, 0, 0.6);
   border: 2px solid rgba(247, 65, 143, 0.3);
   border-radius: 8px;
-  max-width: 500px;
+  width: min(520px, 100%);
   margin-left: auto;
   margin-right: auto;
 }
@@ -696,14 +833,17 @@ function onKeydown(e) {
 }
 
 .players-grid {
+  width: 100%;
+  flex: 1 1 auto;
   max-width: 1400px;
   margin: 0 auto;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
-  gap: 30px;
+  grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr));
+  gap: clamp(14px, 2.2vw, 30px);
+  align-content: start;
   position: relative;
   z-index: 2;
-  padding: 0 20px;
+  padding: 0 clamp(0px, 2vw, 20px);
 }
 
 .empty-state {
@@ -731,7 +871,8 @@ function onKeydown(e) {
 
 .arcade-footer {
   text-align: center;
-  margin-top: 60px;
+  margin-top: clamp(18px, 4vw, 60px);
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
   position: relative;
   z-index: 2;
 }
@@ -934,7 +1075,7 @@ function onKeydown(e) {
 
 @media (max-width: 768px) {
   .public-view {
-    padding: 20px 16px;
+    padding: 18px 14px;
   }
 
   .arcade-title {
@@ -948,6 +1089,20 @@ function onKeydown(e) {
   .players-grid {
     grid-template-columns: 1fr;
     gap: 16px;
+  }
+}
+
+@media (max-width: 420px) {
+  .title-icon {
+    display: none;
+  }
+
+  .stats-bar {
+    padding: 14px;
+  }
+
+  .stat-value {
+    font-size: 1.5rem;
   }
 }
 </style>
