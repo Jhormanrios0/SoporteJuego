@@ -13,6 +13,7 @@ Sistema web retro 8-bit para gestionar vidas de jugadores, con panel público y 
 - 🎨 **Diseño retro 8-bit** con efectos CRT y tipografía arcade
 - 💚 **Sistema de vidas** representado con corazones pixel art (12 vidas por jugador)
 - 👀 **Panel público** sin login para ver el estado de todos los jugadores
+- 👤 **Login de usuario con Google** (opcional) para “entrar al juego”
 - 🔐 **Panel admin** con autenticación para gestionar jugadores
 - ⚡ **Actualización en tiempo real** con Supabase Realtime
 - 📊 **Historial completo** de acciones del admin
@@ -60,14 +61,17 @@ SoporteJuego/
 │   │   └── ConfirmModal.vue        # Modal de confirmación
 │   ├── views/
 │   │   ├── PublicView.vue          # Panel público (/)
-│   │   └── AdminView.vue           # Panel admin (/admin)
+│   │   ├── AuthCallbackView.vue     # Callback OAuth (/auth/callback)
+│   │   ├── UserRegisterView.vue     # Registro usuario (/register)
+│   │   └── AdminView.vue            # Panel admin (/admin)
 │   ├── services/
 │   │   └── supabase.js             # Cliente y servicios de Supabase
 │   ├── App.vue                     # Componente raíz
 │   ├── main.js                     # Entry point + router
 │   └── style.css                   # Estilos globales retro
 ├── supabase/
-│   └── schema.sql                  # Schema completo de BD
+│   ├── schema.sql                  # Schema completo de BD
+│   └── add-user-profile-fields.sql # Campos + policy para usuarios Google
 ├── .env.example                    # Template de variables de entorno
 ├── DEPLOY.md                       # Guía completa de deploy
 ├── package.json
@@ -110,7 +114,12 @@ VITE_SUPABASE_ANON_KEY=tu-clave-anon
 
 1. Crea un proyecto en [Supabase](https://supabase.com)
 2. Ve al SQL Editor y ejecuta `supabase/schema.sql`
-3. Crea un usuario admin y asigna el rol (ver [DEPLOY.md](DEPLOY.md))
+3. (Usuarios Google) Ejecuta `supabase/add-user-profile-fields.sql`
+4. Habilita Google OAuth en **Authentication → Providers → Google**
+5. Agrega Redirect URLs (Authentication → URL Configuration):
+   - `http://localhost:5173/auth/callback`
+   - Tu URL de producción: `https://TU-DOMINIO/auth/callback`
+6. Crea un usuario admin y asigna el rol (ver [DEPLOY.md](DEPLOY.md))
 
 ### 5. Iniciar desarrollo
 
@@ -178,6 +187,12 @@ Abre http://localhost:5173
 - email (TEXT)
 - is_admin (BOOLEAN)
 - created_at
+
+Opcional para usuarios Google (ver `supabase/add-user-profile-fields.sql`):
+
+- display_name (TEXT)
+- avatar_url (TEXT)
+- updated_at
 ```
 
 ### RPC Functions

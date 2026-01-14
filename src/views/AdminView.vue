@@ -44,15 +44,6 @@
           PANEL DE CONTROL
         </h1>
         <div class="admin-header-actions">
-          <button
-            @click="showCreateModal = true"
-            class="btn-header btn-create-header"
-          >
-            + Crear Jugador
-          </button>
-          <button @click="showHistory = !showHistory" class="btn-header">
-            {{ showHistory ? "Ver jugadores" : "Ver historial" }}
-          </button>
           <button @click="handleLogout" class="btn-header btn-logout">
             Cerrar sesión
           </button>
@@ -60,7 +51,7 @@
       </header>
 
       <!-- Jugadores -->
-      <section v-if="!showHistory" class="admin-section">
+      <section class="admin-section">
         <!-- Lista de jugadores -->
         <div class="players-section">
           <div class="section-header">
@@ -88,77 +79,6 @@
           <div v-else class="empty-players">
             <p>No hay jugadores creados</p>
           </div>
-        </div>
-      </section>
-
-      <!-- Historial -->
-      <section v-else class="history-section">
-        <h2 class="section-title">Historial de eventos</h2>
-
-        <!-- Filtros -->
-        <div class="history-filters">
-          <div class="filter-group">
-            <label class="filter-label">Filtrar por persona:</label>
-            <select v-model="filterPlayer" class="filter-select">
-              <option value="">Todos los jugadores</option>
-              <option
-                v-for="player in players"
-                :key="player.id"
-                :value="player.id"
-              >
-                {{ player.nickname }}
-              </option>
-            </select>
-          </div>
-
-          <div class="filter-group">
-            <label class="filter-label">Desde:</label>
-            <input v-model="filterStartDate" type="date" class="filter-input" />
-          </div>
-
-          <div class="filter-group">
-            <label class="filter-label">Hasta:</label>
-            <input v-model="filterEndDate" type="date" class="filter-input" />
-          </div>
-
-          <button @click="resetFilters" class="filter-reset-btn">
-            Limpiar filtros
-          </button>
-        </div>
-
-        <div v-if="filteredEvents.length > 0" class="history-list">
-          <div
-            v-for="event in filteredEvents"
-            :key="event.id"
-            class="history-item"
-          >
-            <div class="history-main">
-              <span class="history-player">{{
-                event.player?.nickname || "Desconocido"
-              }}</span>
-              <span
-                class="history-delta"
-                :class="event.delta < 0 ? 'negative' : 'positive'"
-              >
-                {{ event.delta > 0 ? "+" : "" }}{{ event.delta }} vidas
-              </span>
-            </div>
-            <div class="history-meta">
-              <span class="history-date">{{
-                formatDate(event.created_at)
-              }}</span>
-              <span
-                v-if="event.reason && !isMinecraftDeathMessage(event.reason)"
-                class="history-reason"
-              >
-                • {{ event.reason }}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div v-else class="empty-history">
-          <p>No hay eventos que coincidan con los filtros</p>
         </div>
       </section>
     </div>
@@ -196,33 +116,35 @@
       @cancel="showResetPlayerModal = false"
     />
 
-    <CreatePlayerModal
-      :show="showCreateModal"
-      @cancel="showCreateModal = false"
-      @create="handleCreateFromModal"
+    <GameOverBanner
+      :show="gameOverVisible"
+      :playerName="gameOverPlayerName"
+      :cause="gameOverCause"
+      @close="hideGameOver"
     />
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from "vue";
+import { ref, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
-import { Settings, ArrowLeft, History, Users } from "lucide-vue-next";
+import { Settings, ArrowLeft } from "lucide-vue-next";
 import {
   adminLogin,
   adminLogout,
   getSession,
+  getMyProfile,
   getPlayers,
-  createPlayer,
+  getPlayerById,
   removePlayerLives,
   resetPlayerLives,
   resetAllLives,
-  getLifeEvents,
   deletePlayer,
+  subscribeToLifeEvents,
 } from "@/services/supabase";
 import AdminPlayerRow from "@/components/AdminPlayerRow.vue";
 import ConfirmModal from "@/components/ConfirmModal.vue";
-import CreatePlayerModal from "@/components/CreatePlayerModal.vue";
+import GameOverBanner from "@/components/GameOverBanner.vue";
 
 const router = useRouter();
 
@@ -235,14 +157,14 @@ const loading = ref(false);
 
 // Players
 const players = ref([]);
-const showCreateModal = ref(false);
 
-// History
-const showHistory = ref(false);
-const lifeEvents = ref([]);
-const filterPlayer = ref("");
-const filterStartDate = ref("");
-const filterEndDate = ref("");
+// Game Over banner (global)
+const gameOverVisible = ref(false);
+const gameOverPlayerName = ref("");
+const gameOverCause = ref("");
+const gameOverQueue = [];
+let gameOverTimer = null;
+let liveEventsSubscription = null;
 
 // Modals
 const showResetAllModal = ref(false);
@@ -258,54 +180,32 @@ onMounted(async () => {
   await checkAuth();
 });
 
+onUnmounted(() => {
+  stopSubscriptions();
+});
+
 async function checkAuth() {
   const session = await getSession();
-  isAuthenticated.value = !!session;
+  if (!session?.user) {
+    isAuthenticated.value = false;
+    return;
+  }
+
+  try {
+    const profile = await getMyProfile();
+    isAuthenticated.value = !!profile?.is_admin;
+  } catch {
+    isAuthenticated.value = false;
+  }
 
   if (isAuthenticated.value) {
     await loadData();
+    startSubscriptions();
   }
 }
 
 async function loadData() {
   players.value = await getPlayers();
-  lifeEvents.value = await getLifeEvents();
-}
-
-const filteredEvents = computed(() => {
-  return lifeEvents.value.filter((event) => {
-    // Filtrar por jugador
-    if (
-      filterPlayer.value &&
-      event.player_id !== parseInt(filterPlayer.value)
-    ) {
-      return false;
-    }
-
-    // Filtrar por fecha de inicio
-    if (filterStartDate.value) {
-      const eventDate = new Date(event.created_at).toISOString().split("T")[0];
-      if (eventDate < filterStartDate.value) {
-        return false;
-      }
-    }
-
-    // Filtrar por fecha de fin
-    if (filterEndDate.value) {
-      const eventDate = new Date(event.created_at).toISOString().split("T")[0];
-      if (eventDate > filterEndDate.value) {
-        return false;
-      }
-    }
-
-    return true;
-  });
-});
-
-function resetFilters() {
-  filterPlayer.value = "";
-  filterStartDate.value = "";
-  filterEndDate.value = "";
 }
 
 async function handleLogin() {
@@ -314,8 +214,18 @@ async function handleLogin() {
 
   try {
     await adminLogin(loginEmail.value, loginPassword.value);
+    const profile = await getMyProfile();
+
+    if (!profile?.is_admin) {
+      loginError.value = "No autorizado";
+      await adminLogout();
+      isAuthenticated.value = false;
+      return;
+    }
+
     isAuthenticated.value = true;
     await loadData();
+    startSubscriptions();
   } catch (error) {
     loginError.value = "Credenciales incorrectas";
     console.error("Error login:", error);
@@ -326,6 +236,7 @@ async function handleLogin() {
 
 async function handleLogout() {
   try {
+    stopSubscriptions();
     await adminLogout();
     isAuthenticated.value = false;
     loginEmail.value = "";
@@ -335,15 +246,88 @@ async function handleLogout() {
   }
 }
 
-async function handleCreateFromModal(data) {
-  try {
-    await createPlayer(data.nickname, data.imageFile);
-    showCreateModal.value = false;
-    await loadData();
-  } catch (error) {
-    console.error("Error crear jugador:", error);
-    throw error;
+function startSubscriptions() {
+  if (liveEventsSubscription) return;
+  liveEventsSubscription = subscribeToLifeEvents(async (payload) => {
+    if (payload?.new && payload.new.delta < 0) {
+      const event = payload.new;
+
+      let player = players.value.find((p) => p.id === event.player_id) || null;
+      let lives = player ? player.lives : null;
+
+      try {
+        const fresh = await getPlayerById(event.player_id);
+        if (fresh) {
+          player = fresh;
+          lives = typeof fresh.lives === "number" ? fresh.lives : lives;
+        }
+      } catch {
+        // noop
+      }
+
+      if (lives === 0) {
+        enqueueGameOver(
+          getPlayerDisplayName(player),
+          String(event.reason || "")
+        );
+      }
+    }
+  });
+}
+
+function stopSubscriptions() {
+  if (liveEventsSubscription) {
+    liveEventsSubscription.unsubscribe();
+    liveEventsSubscription = null;
   }
+}
+
+function getPlayerDisplayName(player) {
+  if (!player) return "Jugador";
+  const first = player?.first_name?.trim?.() || "";
+  const last = player?.last_name?.trim?.() || "";
+  const full = `${first} ${last}`.trim();
+  return full || player?.nickname || "Jugador";
+}
+
+function enqueueGameOver(playerName, cause) {
+  gameOverQueue.push({
+    playerName: String(playerName || "Jugador"),
+    cause: String(cause || ""),
+  });
+  if (!gameOverVisible.value) {
+    showNextGameOver();
+  }
+}
+
+function showNextGameOver() {
+  const next = gameOverQueue.shift();
+  if (!next) return;
+
+  gameOverPlayerName.value = next.playerName;
+  gameOverCause.value = next.cause;
+  gameOverVisible.value = true;
+
+  if (gameOverTimer) clearTimeout(gameOverTimer);
+  gameOverTimer = setTimeout(() => {
+    hideGameOver();
+  }, 5200);
+}
+
+function hideGameOver() {
+  if (gameOverTimer) {
+    clearTimeout(gameOverTimer);
+    gameOverTimer = null;
+  }
+
+  if (!gameOverVisible.value) return;
+  gameOverVisible.value = false;
+
+  setTimeout(() => {
+    if (!gameOverVisible.value) {
+      showNextGameOver();
+    }
+  }, 360);
 }
 
 function handleRemoveLives(playerId, amount, reason) {
@@ -429,56 +413,6 @@ async function handleDeletePlayer() {
 
 function goToPublic() {
   router.push("/");
-}
-
-function isMinecraftDeathMessage(reason) {
-  // Lista de patrones de mensajes de muerte automáticos
-  const deathPatterns = [
-    "fue explotado por un Creeper",
-    "fue asesinado por un Esqueleto",
-    "fue devorado por un Zombie",
-    "cayó al vacío",
-    "se quemó en lava",
-    "fue asesinado por una Araña",
-    "murió ahogado",
-    "fue alcanzado por un rayo",
-    "fue eliminado por un Enderman",
-    "fue asesinado por un Blaze",
-    "cayó de un lugar alto",
-    "fue envenenado por una Araña de Cueva",
-    "fue asesinado por un Piglin",
-    "explotó por TNT",
-    "fue golpeado por un Ghast",
-    "fue asesinado por un Vindicator",
-    "cayó en cactus",
-    "murió por inanición",
-    "fue congelado hasta morir",
-    "fue atravesado por un Tridente",
-    "fue eliminado por el Wither",
-    "fue asesinado por un Evoker",
-    "fue picado por una abeja",
-    "cayó en polvo de nieve",
-    "fue empalado por una Stalagmite",
-    "fue asesinado por un Hoglin",
-    "intentó nadar en lava",
-    "descubrió que el piso era lava",
-    "fue fulminado por magia",
-    "fue golpeado hasta morir",
-  ];
-
-  return deathPatterns.some((pattern) => reason?.includes(pattern));
-}
-
-function formatDate(dateString) {
-  const date = new Date(dateString);
-  return date.toLocaleString("es-ES", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
 }
 </script>
 
@@ -797,136 +731,6 @@ function formatDate(dateString) {
 }
 
 /* HISTORY */
-.history-section {
-  max-width: 1400px;
-  margin: 0 auto;
-  background: rgba(0, 0, 0, 0.7);
-  border: 3px solid #ffaa00;
-  border-radius: 8px;
-  padding: 24px;
-}
-
-.history-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.history-item {
-  background: rgba(0, 0, 0, 0.5);
-  border: 2px solid rgba(255, 170, 0, 0.5);
-  border-radius: 4px;
-  padding: 16px;
-}
-
-.history-main {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-}
-
-.history-player {
-  font-family: "Press Start 2P", monospace;
-  font-size: 0.9rem;
-  color: #00ff88;
-}
-
-.history-delta {
-  font-family: "Press Start 2P", monospace;
-  font-size: 0.85rem;
-  font-weight: bold;
-}
-
-.history-delta.negative {
-  color: #ff0055;
-}
-
-.history-delta.positive {
-  color: #00ffff;
-}
-
-.history-meta {
-  font-family: "Press Start 2P", monospace;
-  font-size: 0.65rem;
-  color: #888;
-}
-
-.history-date {
-  margin-right: 8px;
-}
-
-.history-reason {
-  color: #ffaa00;
-}
-
-/* FILTROS */
-.history-filters {
-  display: flex;
-  gap: 16px;
-  margin-bottom: 24px;
-  padding: 20px;
-  background: rgba(0, 0, 0, 0.6);
-  border: 2px solid #00ffff;
-  border-radius: 8px;
-  flex-wrap: wrap;
-  align-items: flex-end;
-}
-
-.filter-group {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.filter-label {
-  font-family: "Press Start 2P", monospace;
-  font-size: 0.65rem;
-  color: #00ffff;
-}
-
-.filter-select,
-.filter-input {
-  padding: 10px 12px;
-  font-family: "Press Start 2P", monospace;
-  font-size: 0.7rem;
-  background: rgba(0, 0, 0, 0.8);
-  border: 2px solid #00ff88;
-  border-radius: 4px;
-  color: #00ff88;
-  min-width: 200px;
-}
-
-.filter-select:focus,
-.filter-input:focus {
-  outline: none;
-  box-shadow: 0 0 12px rgba(0, 255, 136, 0.5);
-}
-
-.filter-reset-btn {
-  padding: 10px 16px;
-  font-family: "Press Start 2P", monospace;
-  font-size: 0.65rem;
-  background: rgba(255, 0, 85, 0.2);
-  border: 2px solid #ff0055;
-  border-radius: 4px;
-  color: #ff0055;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.filter-reset-btn:hover {
-  background: rgba(255, 0, 85, 0.3);
-  box-shadow: 0 0 12px rgba(255, 0, 85, 0.5);
-}
-
-.empty-history {
-  text-align: center;
-  padding: 40px;
-  font-family: "Press Start 2P", monospace;
-  color: #888;
-  font-size: 0.9rem;
-}
 
 @media (max-width: 768px) {
   .admin-header {

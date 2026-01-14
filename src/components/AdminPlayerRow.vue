@@ -1,7 +1,23 @@
 <template>
   <div class="admin-player-row">
     <div class="player-info">
-      <span class="player-name">{{ player.nickname }}</span>
+      <div class="player-ident">
+        <div class="avatar-frame" aria-hidden="true">
+          <img
+            v-if="avatarUrl && !avatarFailed"
+            :src="avatarUrl"
+            class="avatar-img"
+            alt=""
+            @error="avatarFailed = true"
+          />
+          <div v-else class="avatar-placeholder">
+            <CreeperIcon :size="54" class="avatar-creeper" />
+            <span class="avatar-initials">{{ initials }}</span>
+          </div>
+        </div>
+
+        <span class="player-name">{{ displayName }}</span>
+      </div>
       <HeartsBar :lives="player.lives" :max-lives="player.max_lives || 12" />
     </div>
 
@@ -69,9 +85,10 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
+import { ref, computed } from "vue";
 import { Trash2 } from "lucide-vue-next";
 import HeartsBar from "./HeartsBar.vue";
+import CreeperIcon from "./CreeperIcon.vue";
 
 const props = defineProps({
   player: {
@@ -81,6 +98,29 @@ const props = defineProps({
 });
 
 const emit = defineEmits(["remove-lives", "reset", "delete"]);
+
+const displayName = computed(() => {
+  const first = props.player?.first_name?.trim?.() || "";
+  const last = props.player?.last_name?.trim?.() || "";
+  const full = `${first} ${last}`.trim();
+  return full || props.player?.nickname || "Jugador";
+});
+
+const avatarUrl = computed(() => String(props.player?.image_url || "").trim());
+const avatarFailed = ref(false);
+
+const initials = computed(() => {
+  const name = displayName.value || "";
+  const parts = name
+    .split(" ")
+    .map((p) => p.trim())
+    .filter(Boolean);
+  const first = parts[0]?.[0] || "?";
+  const second = parts.length > 1 ? parts[1]?.[0] : "";
+  return (first + second).toUpperCase();
+});
+
+const avatarSize = computed(() => 84);
 
 const customAmount = ref(null);
 const reason = ref("");
@@ -123,11 +163,92 @@ function resetLives() {
   border-bottom: 1px solid rgba(0, 255, 136, 0.3);
 }
 
+.player-ident {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.avatar-frame {
+  width: 84px;
+  height: 84px;
+  border-radius: 10px;
+  border: 3px solid rgba(0, 0, 0, 0.9);
+  background: rgba(20, 20, 20, 0.95);
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.05),
+    inset 0 -4px 0 rgba(0, 0, 0, 0.7);
+  overflow: hidden;
+  flex: 0 0 auto;
+  transform: translateZ(0);
+  transition: transform 120ms ease, filter 140ms ease;
+}
+
+.admin-player-row:hover .avatar-frame {
+  transform: translateY(-1px);
+  filter: brightness(1.05);
+}
+
+.avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  image-rendering: pixelated;
+  transform: translateZ(0);
+}
+
+.avatar-placeholder {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(
+    180deg,
+    rgba(52, 52, 52, 0.9),
+    rgba(24, 24, 24, 0.95)
+  );
+  position: relative;
+}
+
+.avatar-creeper {
+  animation: creeperBob 1.4s ease-in-out infinite;
+}
+
+.avatar-initials {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.55rem;
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(0, 0, 0, 0.55);
+  border: 2px solid rgba(0, 0, 0, 0.85);
+  border-radius: 6px;
+  padding: 4px 6px;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.06);
+}
+
+@keyframes creeperBob {
+  0%,
+  100% {
+    transform: translateY(0);
+    filter: brightness(1);
+  }
+  50% {
+    transform: translateY(-2px);
+    filter: brightness(1.08);
+  }
+}
+
 .player-name {
   font-family: "Press Start 2P", monospace;
   font-size: 1rem;
   color: #00ff88;
   text-shadow: 0 0 8px rgba(0, 255, 136, 0.6);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .admin-actions {

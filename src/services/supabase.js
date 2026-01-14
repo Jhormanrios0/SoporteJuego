@@ -9,6 +9,84 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+// ==================== AUTH USUARIOS (GOOGLE) ====================
+
+/**
+ * Login de usuario con Google (OAuth)
+ * Redirige al callback configurado.
+ */
+export async function userLoginWithGoogle() {
+  const redirectTo = `${window.location.origin}/auth/callback`;
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: {
+      redirectTo,
+    },
+  });
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Logout de usuario (y admin también, Supabase maneja una sola sesión)
+ */
+export async function userLogout() {
+  const { error } = await supabase.auth.signOut();
+  if (error) throw error;
+}
+
+/**
+ * Obtener el perfil del usuario autenticado (tabla public.profiles)
+ * @returns {Promise<object|null>}
+ */
+export async function getMyProfile() {
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError) throw userError;
+  if (!user) return null;
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Actualizar el perfil del usuario autenticado
+ * @param {{display_name?: string, avatar_url?: string}} updates
+ */
+export async function updateMyProfile(updates) {
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError) throw userError;
+  if (!user) throw new Error("No hay sesión activa");
+
+  const patch = {
+    ...updates,
+  };
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .update(patch)
+    .eq("id", user.id)
+    .select("*")
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
 // ==================== SERVICIOS PÚBLICOS ====================
 
 /**
@@ -20,6 +98,8 @@ export async function getPlayers() {
     .from("players")
     .select("*")
     .order("lives", { ascending: true }) // Los con menos vidas primero
+    .order("last_name", { ascending: true, nullsFirst: false })
+    .order("first_name", { ascending: true, nullsFirst: false })
     .order("nickname", { ascending: true });
 
   if (error) {
@@ -27,6 +107,28 @@ export async function getPlayers() {
     return [];
   }
   return data || [];
+}
+
+/**
+ * Obtiene un jugador por id (lectura pública)
+ * @param {number} playerId
+ * @returns {Promise<object|null>}
+ */
+export async function getPlayerById(playerId) {
+  if (!playerId && playerId !== 0) return null;
+
+  const { data, error } = await supabase
+    .from("players")
+    .select("*")
+    .eq("id", playerId)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Error al obtener jugador:", error);
+    return null;
+  }
+
+  return data || null;
 }
 
 /**
@@ -108,6 +210,120 @@ function sanitizeFileName(text) {
     .replace(/[^a-zA-Z0-9-_]/g, "-") // Remover otros caracteres especiales
     .replace(/-+/g, "-") // Consolidar guiones múltiples
     .toLowerCase(); // Convertir a minúsculas
+}
+
+/**
+ * Subir imagen del jugador (usuario) a Storage dentro de una carpeta por UID
+ * Requiere policy de Storage que permita `bucket_id = 'player-images'` y `name` prefijado con el uid.
+ * @param {File} file
+ * @param {string} userId
+ * @param {string} label
+ * @returns {Promise<string>} URL pública
+ */
+export async function uploadUserPlayerImage(file, userId, label = "player") {
+  const timestamp = Date.now();
+  const safeLabel = sanitizeFileName(label);
+  const fileName = `${safeLabel}-${timestamp}`;
+  const objectPath = `${userId}/${fileName}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from("player-images")
+    .upload(objectPath, file, {
+      upsert: true,
+    });
+
+  if (uploadError) throw uploadError;
+
+  const { data } = supabase.storage
+    .from("player-images")
+    .getPublicUrl(objectPath);
+  return data.publicUrl;
+}
+
+/**
+ * Obtener el jugador asociado al usuario autenticado (players.user_id)
+ * @returns {Promise<object|null>}
+ */
+export async function getMyPlayer() {
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError) throw userError;
+  if (!user) return null;
+
+  const { data, error } = await supabase
+    .from("players")
+    .select("*")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Crear (si no existe) o actualizar el jugador del usuario actual.
+ * Nota: no toca vidas (eso lo maneja el admin).
+ * @param {{first_name: string, last_name: string, imageFile?: File|null}} payload
+ */
+export async function upsertMyPlayer(payload) {
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError) throw userError;
+  if (!user) throw new Error("No hay sesión activa");
+
+  const firstName = (payload.first_name || "").trim();
+  const lastName = (payload.last_name || "").trim();
+  const display = `${firstName} ${lastName}`.trim();
+  const nickname = display || user.email || "Jugador";
+
+  const current = await getMyPlayer();
+
+  let imageUrl = current?.image_url || null;
+  if (payload.imageFile) {
+    imageUrl = await uploadUserPlayerImage(
+      payload.imageFile,
+      user.id,
+      display || user.email || "player"
+    );
+  }
+
+  if (!current) {
+    const { data, error } = await supabase
+      .from("players")
+      .insert({
+        user_id: user.id,
+        first_name: firstName,
+        last_name: lastName,
+        nickname,
+        image_url: imageUrl,
+      })
+      .select("*")
+      .single();
+
+    if (error) throw error;
+    return data;
+  }
+
+  const { data, error } = await supabase
+    .from("players")
+    .update({
+      first_name: firstName,
+      last_name: lastName,
+      nickname,
+      image_url: imageUrl,
+    })
+    .eq("id", current.id)
+    .select("*")
+    .single();
+
+  if (error) throw error;
+  return data;
 }
 
 /**

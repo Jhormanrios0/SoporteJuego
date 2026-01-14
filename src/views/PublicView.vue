@@ -33,17 +33,101 @@
       <!-- Estado vacío -->
       <div v-if="players.length === 0" class="empty-state">
         <p class="empty-message">No hay jugadores registrados</p>
-        <p class="empty-hint">El admin debe crear jugadores desde /admin</p>
+        <p class="empty-hint">Inicia sesión y regístrate para aparecer</p>
       </div>
     </main>
 
     <!-- Footer -->
     <footer class="arcade-footer">
-      <p class="footer-text">
-        Actualización en tiempo real •
-        <span class="footer-link" @click="goToAdmin">Admin Panel</span>
-      </p>
+      <div class="user-auth">
+        <button
+          v-if="!authUser"
+          class="user-btn"
+          :disabled="authLoading"
+          @click="openLoginModal"
+        >
+          <LogIn class="btn-icon" :size="18" />
+          <span>{{ authLoading ? "CARGANDO…" : "ENTRAR" }}</span>
+        </button>
+
+        <div v-else class="user-session">
+          <div class="user-session-text">
+            Sesión: <span class="user-session-strong">{{ userLabel }}</span>
+            <span v-if="profileNeedsRegister" class="user-session-warn">
+              • Registro pendiente
+            </span>
+          </div>
+
+          <div class="user-session-actions">
+            <button
+              v-if="profileNeedsRegister"
+              class="user-btn secondary"
+              @click="goToRegister"
+            >
+              Completar registro
+            </button>
+            <button class="user-btn danger" @click="logout">
+              Cerrar sesión
+            </button>
+          </div>
+        </div>
+
+        <p v-if="authError" class="auth-error">{{ authError }}</p>
+      </div>
     </footer>
+
+    <!-- Modal de login (VIP / Jugador) -->
+    <div
+      v-if="showLoginModal"
+      class="login-modal-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Opciones de inicio de sesión"
+      @click.self="closeLoginModal"
+    >
+      <div class="login-modal">
+        <div class="login-modal-header">
+          <div class="login-modal-title">ELIGE TU ACCESO</div>
+          <button
+            class="login-modal-close"
+            type="button"
+            aria-label="Cerrar"
+            @click="closeLoginModal"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div class="login-modal-body">
+          <p class="login-modal-subtitle">
+            VIP es para administración. Jugador entra con Google.
+          </p>
+
+          <div class="login-modal-actions">
+            <button class="user-btn secondary" type="button" @click="enterVip">
+              <Crown class="btn-icon" :size="18" />
+              <span>VIP</span>
+            </button>
+            <button
+              class="user-btn"
+              type="button"
+              :disabled="authLoading"
+              @click="enterJugador"
+            >
+              <User class="btn-icon" :size="18" />
+              <span>{{ authLoading ? "CARGANDO…" : "JUGADOR" }}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <GameOverBanner
+      :show="gameOverVisible"
+      :playerName="gameOverPlayerName"
+      :cause="gameOverCause"
+      @close="hideGameOver"
+    />
 
     <!-- Notificaciones de muerte -->
     <DeathNotification :notifications="deathNotifications" />
@@ -57,19 +141,30 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from "vue";
+import { ref, onMounted, onUnmounted, computed } from "vue";
 import { useRouter } from "vue-router";
-import { Gamepad2 } from "lucide-vue-next";
+import { Crown, Gamepad2, LogIn, User } from "lucide-vue-next";
 import {
   getPlayers,
+  getPlayerById,
   subscribeToPlayers,
   subscribeToLifeEvents,
+  getSession,
+  getMyPlayer,
+  userLoginWithGoogle,
+  userLogout,
+  supabase,
 } from "@/services/supabase";
 import PlayerCard from "@/components/PlayerCard.vue";
 import DeathNotification from "@/components/DeathNotification.vue";
 import Rules from "@/components/Rules.vue";
 import hahaDamageSound from "@/assets/audio/hahaDamage.mp3";
 import minecraftDamageSound from "@/assets/audio/MinecraftDamage.mp3";
+import {
+  requestDesktopNotificationsPermission,
+  showDesktopNotification,
+  canUseDesktopNotifications,
+} from "@/services/desktopNotifications";
 
 const router = useRouter();
 const players = ref([]);
@@ -79,6 +174,135 @@ let playersSubscription = null;
 let eventsSubscription = null;
 let audioContext = null;
 let rulesVisible = ref(false);
+
+// Auth usuario
+const authUser = ref(null);
+const myPlayer = ref(null);
+const authLoading = ref(false);
+const authError = ref("");
+let authSubscription = null;
+
+// Modal login
+const showLoginModal = ref(false);
+
+// Game Over banner (global)
+const gameOverVisible = ref(false);
+const gameOverPlayerName = ref("");
+const gameOverCause = ref("");
+const gameOverQueue = [];
+let gameOverTimer = null;
+
+// Desktop notifications
+let requestedDesktopNotifications = false;
+
+function requestDesktopNotificationsOnce() {
+  if (!canUseDesktopNotifications()) return;
+  if (requestedDesktopNotifications) return;
+  requestedDesktopNotifications = true;
+  requestDesktopNotificationsPermission().catch(() => {
+    // noop
+  });
+}
+
+function maybeNotifyDesktopDeath(message) {
+  // En desktop, normalmente se desea cuando está en segundo plano
+  if (!document.hidden) return;
+  showDesktopNotification({
+    title: "MUERTE",
+    body: message,
+    tag: "life-event",
+  });
+}
+
+function notifyDesktopGameOver(playerName, cause) {
+  showDesktopNotification({
+    title: "GAME OVER",
+    body: `${playerName}: ${cause}`,
+    tag: `game-over-${playerName}`,
+    requireInteraction: true,
+  });
+}
+
+const userLabel = computed(() => {
+  const first = myPlayer.value?.first_name?.trim?.() || "";
+  const last = myPlayer.value?.last_name?.trim?.() || "";
+  const full = `${first} ${last}`.trim();
+  return full || authUser.value?.email || "Usuario";
+});
+
+const profileNeedsRegister = computed(() => {
+  // Registro pendiente si está autenticado pero aún no creó su jugador
+  if (!authUser.value) return false;
+  return !myPlayer.value?.id;
+});
+
+async function loadAuth() {
+  authError.value = "";
+  authLoading.value = true;
+  try {
+    const session = await getSession();
+    authUser.value = session?.user || null;
+    myPlayer.value = authUser.value ? await getMyPlayer() : null;
+  } catch (e) {
+    authUser.value = null;
+    myPlayer.value = null;
+    authError.value = e?.message || "Error cargando sesión";
+  } finally {
+    authLoading.value = false;
+  }
+}
+
+function openLoginModal() {
+  authError.value = "";
+  showLoginModal.value = true;
+}
+
+function closeLoginModal() {
+  showLoginModal.value = false;
+}
+
+async function loginWithGoogle() {
+  authError.value = "";
+  authLoading.value = true;
+  try {
+    await userLoginWithGoogle();
+    // Redirige a Google
+  } catch (e) {
+    authError.value = e?.message || "No se pudo iniciar sesión con Google";
+    authLoading.value = false;
+  }
+}
+
+function enterVip() {
+  closeLoginModal();
+  goToAdmin();
+}
+
+async function enterJugador() {
+  closeLoginModal();
+  await loginWithGoogle();
+}
+
+async function logout() {
+  authError.value = "";
+  authLoading.value = true;
+  try {
+    await userLogout();
+    authUser.value = null;
+    myPlayer.value = null;
+  } catch (e) {
+    authError.value = e?.message || "No se pudo cerrar sesión";
+  } finally {
+    authLoading.value = false;
+  }
+}
+
+function goToRegister() {
+  router.push({
+    name: "register",
+    query: { email: authUser.value?.email || "" },
+  });
+}
 
 // Inicializar AudioContext cuando el usuario interactúa
 function initializeAudioContext() {
@@ -113,14 +337,49 @@ function initializeAudioContext() {
 }
 
 onMounted(async () => {
+  window.addEventListener("keydown", onKeydown);
+
   // Intentar inicializar AudioContext inmediatamente
   initializeAudioContext();
 
   // También agregarlo como listener de respaldo
   document.addEventListener("click", initializeAudioContext, { once: true });
 
+  // Pedir permiso de notificaciones con gesto de usuario (click)
+  document.addEventListener("click", requestDesktopNotificationsOnce, {
+    once: true,
+  });
+
   // Cargar jugadores iniciales
   await loadPlayers();
+
+  // Cargar sesión usuario (si existe)
+  await loadAuth();
+
+  // Escuchar cambios de auth (login/logout)
+  authSubscription = supabase.auth.onAuthStateChange(
+    async (_event, session) => {
+      authUser.value = session?.user || null;
+      if (authUser.value) {
+        try {
+          myPlayer.value = await getMyPlayer();
+        } catch {
+          myPlayer.value = null;
+        }
+      } else {
+        myPlayer.value = null;
+      }
+    }
+  ).data.subscription;
+
+  // Pedir permiso al primer click (igual que el audio)
+  document.addEventListener(
+    "click",
+    () => {
+      requestDesktopPermission();
+    },
+    { once: true }
+  );
 
   // Suscribirse a cambios en jugadores
   playersSubscription = subscribeToPlayers(() => {
@@ -134,6 +393,8 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+  window.removeEventListener("keydown", onKeydown);
+
   // Limpiar suscripciones
   if (playersSubscription) {
     playersSubscription.unsubscribe();
@@ -141,7 +402,25 @@ onUnmounted(() => {
   if (eventsSubscription) {
     eventsSubscription.unsubscribe();
   }
+
+  if (authSubscription) {
+    authSubscription.unsubscribe();
+  }
 });
+
+function canNotify() {
+  return "Notification" in window;
+}
+
+// Solicitar permiso de notificaciones de escritorio
+async function requestDesktopPermission() {
+  if (!canNotify()) return false;
+
+  if (Notification.permission === "granted") return true;
+
+  const permission = await Notification.requestPermission();
+  return permission === "granted";
+}
 
 async function loadPlayers() {
   players.value = await getPlayers();
@@ -151,24 +430,39 @@ function handleDeathEvent(payload) {
   console.log("[Events] Evento recibido:", payload);
 
   // Solo mostrar notificaciones cuando se quitan vidas (delta negativo)
-  if (payload.new && payload.new.delta < 0 && payload.new.reason) {
+  if (payload?.new && payload.new.delta < 0) {
     console.log("[Audio] Reproduciendo sonido de daño...");
 
-    // Buscar las vidas actuales del jugador
-    const player = players.value.find((p) => p.id === payload.new.player_id);
-    const currentLives = player ? player.lives : 0;
+    const event = payload.new;
 
-    // Reproducir sonido de daño
-    playDamageSound(currentLives);
+    const localPlayer =
+      players.value.find((p) => p.id === event.player_id) || null;
+    const localLives = localPlayer ? localPlayer.lives : 0;
+
+    // Reproducir sonido de daño (sin esperar red)
+    playDamageSound(localLives);
+
+    // Función para enviar notificación de escritorio
+    sendDesktopNotification("💀 ¡Vida perdida!", payload.new.reason);
 
     const id = ++notificationId;
+
+    const amount = Math.abs(Number(event.delta || 0)) || 1;
+    const playerName = getPlayerDisplayName(localPlayer);
+    const message =
+      String(event.reason || "").trim() ||
+      `${playerName} perdió ${amount} vida${amount === 1 ? "" : "s"}`;
+
     const notification = {
       id,
-      message: payload.new.reason,
+      message,
       index: deathNotifications.value.length,
     };
 
     deathNotifications.value.push(notification);
+
+    // Notificación del sistema (Windows) en segundo plano
+    maybeNotifyDesktopDeath(message);
 
     // Actualizar índices
     deathNotifications.value.forEach((notif, idx) => {
@@ -186,7 +480,71 @@ function handleDeathEvent(payload) {
         });
       }
     }, 5000);
+
+    // Banner global SOLO si el jugador llegó a 0 vidas (sin bloquear alerts/sonidos)
+    getPlayerById(event.player_id)
+      .then((fresh) => {
+        const livesAfter =
+          typeof fresh?.lives === "number" ? fresh.lives : null;
+        if (livesAfter === 0) {
+          const name = getPlayerDisplayName(fresh || localPlayer);
+          enqueueGameOver(name, message);
+          notifyDesktopGameOver(name, message);
+        }
+      })
+      .catch(() => {
+        // noop
+      });
   }
+}
+
+function getPlayerDisplayName(player) {
+  if (!player) return "Jugador";
+  const first = player?.first_name?.trim?.() || "";
+  const last = player?.last_name?.trim?.() || "";
+  const full = `${first} ${last}`.trim();
+  return full || player?.nickname || "Jugador";
+}
+
+function enqueueGameOver(playerName, cause) {
+  gameOverQueue.push({
+    playerName: String(playerName || "Jugador"),
+    cause: String(cause || ""),
+  });
+  if (!gameOverVisible.value) {
+    showNextGameOver();
+  }
+}
+
+function showNextGameOver() {
+  const next = gameOverQueue.shift();
+  if (!next) return;
+
+  gameOverPlayerName.value = next.playerName;
+  gameOverCause.value = next.cause;
+  gameOverVisible.value = true;
+
+  if (gameOverTimer) clearTimeout(gameOverTimer);
+  gameOverTimer = setTimeout(() => {
+    hideGameOver();
+  }, 5200);
+}
+
+function hideGameOver() {
+  if (gameOverTimer) {
+    clearTimeout(gameOverTimer);
+    gameOverTimer = null;
+  }
+
+  if (!gameOverVisible.value) return;
+  gameOverVisible.value = false;
+
+  // esperar la animación de salida
+  setTimeout(() => {
+    if (!gameOverVisible.value) {
+      showNextGameOver();
+    }
+  }, 360);
 }
 
 function playDamageSound(currentLives = 0) {
@@ -234,6 +592,17 @@ function playDamageSound(currentLives = 0) {
   }
 }
 
+function sendDesktopNotification(title, body) {
+  if (!("Notification" in window)) return;
+
+  if (document.visibilityState === "visible") return;
+
+  if (Notification.permission !== "granted") return;
+
+  new Notification(title, {
+    body,
+  });
+}
 function playSyntheticSound() {
   try {
     // Verificar que AudioContext esté inicializado (requiere clic del usuario)
@@ -291,6 +660,12 @@ function playSyntheticSound() {
 function goToAdmin() {
   router.push("/admin");
 }
+
+function onKeydown(e) {
+  if (e.key === "Escape" && showLoginModal.value) {
+    closeLoginModal();
+  }
+}
 </script>
 
 <style scoped>
@@ -326,7 +701,8 @@ function goToAdmin() {
 
 .arcade-header {
   text-align: center;
-  margin-bottom: 60px;
+  margin: 0 auto clamp(22px, 4vw, 60px);
+  max-width: 1400px;
   position: relative;
   z-index: 2;
   background: linear-gradient(180deg,
@@ -339,7 +715,7 @@ function goToAdmin() {
 .title-container {
   position: relative;
   display: inline-block;
-  padding: 20px 40px;
+  padding: clamp(14px, 3.2vw, 20px) clamp(16px, 4.2vw, 40px);
 }
 
 .title-decoration {
@@ -366,12 +742,12 @@ function goToAdmin() {
 
 .arcade-title {
   font-family: "Press Start 2P", monospace;
-  font-size: 2rem;
+  font-size: clamp(1.1rem, 2.6vw, 2rem);
   margin: 0;
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 20px;
+  gap: clamp(10px, 2vw, 20px);
   flex-wrap: wrap;
 }
 
@@ -435,23 +811,24 @@ function goToAdmin() {
 
 .arcade-subtitle {
   font-family: "Press Start 2P", monospace;
-  font-size: 0.85rem;
+  font-size: clamp(0.65rem, 1.35vw, 0.85rem);
   color: #00ffc2;
   text-shadow: 0 0 10px rgba(0, 255, 194, 0.8);
   margin: 20px 0;
-  letter-spacing: 3px;
+  letter-spacing: clamp(1px, 0.6vw, 3px);
 }
 
 .stats-bar {
   display: flex;
   justify-content: center;
-  gap: 40px;
+  flex-wrap: wrap;
+  gap: clamp(14px, 3vw, 40px);
   margin-top: 30px;
   padding: 20px;
   background: rgba(0, 0, 0, 0.6);
   border: 2px solid rgba(247, 65, 143, 0.3);
   border-radius: 8px;
-  max-width: 500px;
+  width: min(520px, 100%);
   margin-left: auto;
   margin-right: auto;
 }
@@ -497,14 +874,17 @@ function goToAdmin() {
 }
 
 .players-grid {
+  width: 100%;
+  flex: 1 1 auto;
   max-width: 1400px;
   margin: 0 auto;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
-  gap: 30px;
+  grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr));
+  gap: clamp(14px, 2.2vw, 30px);
+  align-content: start;
   position: relative;
   z-index: 2;
-  padding: 0 20px;
+  padding: 0 clamp(0px, 2vw, 20px);
 }
 
 .empty-state {
@@ -532,9 +912,105 @@ function goToAdmin() {
 
 .arcade-footer {
   text-align: center;
-  margin-top: 60px;
+  margin-top: clamp(18px, 4vw, 60px);
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
   position: relative;
   z-index: 2;
+}
+
+.user-auth {
+  margin-top: 14px;
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+}
+
+.user-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 2px solid rgba(0, 0, 0, 0.95);
+  border-radius: 6px;
+  padding: 12px 14px;
+  font-weight: 900;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  cursor: pointer;
+  background: rgba(64, 64, 64, 0.95);
+  color: #fff;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.06),
+    inset 0 -4px 0 rgba(0, 0, 0, 0.7), 0 10px 28px rgba(0, 0, 0, 0.35);
+  transition: transform 0.08s ease, filter 0.12s ease;
+}
+
+.btn-icon {
+  flex: 0 0 auto;
+}
+
+.user-btn:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.user-btn:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.06),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.8), 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+
+.user-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.user-btn.secondary {
+  background: rgba(45, 45, 45, 0.95);
+}
+
+.user-btn.danger {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 110, 110, 0.85),
+    rgba(170, 45, 45, 0.9)
+  );
+}
+
+.user-session {
+  width: min(680px, 100%);
+  display: grid;
+  gap: 10px;
+  align-items: center;
+  justify-items: center;
+}
+
+.user-session-text {
+  color: rgba(255, 255, 255, 0.86);
+  font-weight: 700;
+  text-align: center;
+}
+
+.user-session-strong {
+  color: #00ffc2;
+  font-weight: 900;
+}
+
+.user-session-warn {
+  color: #ffda79;
+  font-weight: 900;
+}
+
+.user-session-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.auth-error {
+  margin: 0;
+  color: #ff6b6b;
+  font-weight: 800;
+  text-align: center;
 }
 
 .footer-text {
@@ -556,9 +1032,91 @@ function goToAdmin() {
   text-shadow: 0 0 8px rgba(0, 255, 136, 0.8);
 }
 
+.login-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(0, 0, 0, 0.66);
+  backdrop-filter: blur(2px);
+}
+
+.login-modal {
+  width: min(540px, 100%);
+  background: rgba(22, 22, 22, 0.92);
+  border: 4px solid rgba(0, 0, 0, 0.85);
+  border-radius: 10px;
+  box-shadow: 0 18px 55px rgba(0, 0, 0, 0.55),
+    inset 0 0 0 2px rgba(255, 255, 255, 0.06),
+    inset 0 0 0 6px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+}
+
+.login-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 14px 10px;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.08);
+}
+
+.login-modal-title {
+  font-family: "Press Start 2P", monospace;
+  color: #ffffff;
+  font-size: 0.95rem;
+  letter-spacing: 1px;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.8);
+}
+
+.login-modal-close {
+  border: 2px solid rgba(0, 0, 0, 0.95);
+  border-radius: 8px;
+  width: 42px;
+  height: 38px;
+  background: rgba(64, 64, 64, 0.95);
+  color: #fff;
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.06),
+    inset 0 -4px 0 rgba(0, 0, 0, 0.7);
+}
+
+.login-modal-close:active {
+  transform: translateY(2px);
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.06),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.8);
+}
+
+.login-modal-body {
+  padding: 14px;
+  display: grid;
+  gap: 12px;
+}
+
+.login-modal-subtitle {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.78);
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.6);
+}
+
+.login-modal-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+@media (max-width: 520px) {
+  .login-modal-actions {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 768px) {
   .public-view {
-    padding: 20px 16px;
+    padding: 18px 14px;
   }
 
   .arcade-title {
