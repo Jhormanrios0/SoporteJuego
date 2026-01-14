@@ -230,6 +230,74 @@ const profileNeedsRegister = computed(() => {
   return !myPlayer.value?.id;
 });
 
+async function loadAuth() {
+  authError.value = "";
+  authLoading.value = true;
+  try {
+    const session = await getSession();
+    authUser.value = session?.user || null;
+    myPlayer.value = authUser.value ? await getMyPlayer() : null;
+  } catch (e) {
+    authUser.value = null;
+    myPlayer.value = null;
+    authError.value = e?.message || "Error cargando sesión";
+  } finally {
+    authLoading.value = false;
+  }
+}
+
+function openLoginModal() {
+  authError.value = "";
+  showLoginModal.value = true;
+}
+
+function closeLoginModal() {
+  showLoginModal.value = false;
+}
+
+async function loginWithGoogle() {
+  authError.value = "";
+  authLoading.value = true;
+  try {
+    await userLoginWithGoogle();
+    // Redirige a Google
+  } catch (e) {
+    authError.value = e?.message || "No se pudo iniciar sesión con Google";
+    authLoading.value = false;
+  }
+}
+
+function enterVip() {
+  closeLoginModal();
+  goToAdmin();
+}
+
+async function enterJugador() {
+  closeLoginModal();
+  await loginWithGoogle();
+}
+
+async function logout() {
+  authError.value = "";
+  authLoading.value = true;
+  try {
+    await userLogout();
+    authUser.value = null;
+    myPlayer.value = null;
+  } catch (e) {
+    authError.value = e?.message || "No se pudo cerrar sesión";
+  } finally {
+    authLoading.value = false;
+  }
+}
+
+function goToRegister() {
+  router.push({
+    name: "register",
+    query: { email: authUser.value?.email || "" },
+  });
+}
+
 // Inicializar AudioContext cuando el usuario interactúa
 function initializeAudioContext() {
   if (!audioContext) {
@@ -279,6 +347,25 @@ onMounted(async () => {
   // Cargar jugadores iniciales
   await loadPlayers();
 
+  // Cargar sesión usuario (si existe)
+  await loadAuth();
+
+  // Escuchar cambios de auth (login/logout)
+  authSubscription = supabase.auth.onAuthStateChange(
+    async (_event, session) => {
+      authUser.value = session?.user || null;
+      if (authUser.value) {
+        try {
+          myPlayer.value = await getMyPlayer();
+        } catch {
+          myPlayer.value = null;
+        }
+      } else {
+        myPlayer.value = null;
+      }
+    }
+  ).data.subscription;
+
   // Pedir permiso al primer click (igual que el audio)
   document.addEventListener(
     "click",
@@ -324,7 +411,6 @@ async function requestDesktopPermission() {
   if (!canNotify()) return false;
 
   if (Notification.permission === "granted") return true;
-
 
   const permission = await Notification.requestPermission();
   return permission === "granted";
@@ -500,17 +586,15 @@ function playDamageSound(currentLives = 0) {
   }
 }
 
-
-
-function sendDesktopNotification(title,body){
-  if(!("Notification" in window)) return;
+function sendDesktopNotification(title, body) {
+  if (!("Notification" in window)) return;
 
   if (document.visibilityState === "visible") return;
 
-  if(Notification.permission!=="granted") return;
+  if (Notification.permission !== "granted") return;
 
-  new Notification(title,{
-    body
+  new Notification(title, {
+    body,
   });
 }
 function playSyntheticSound() {
