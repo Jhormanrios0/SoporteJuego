@@ -237,7 +237,38 @@
                 </div>
               </div>
             </div>
-          </section>
+          </div>
+
+          <input
+            ref="fileInputEl"
+            class="file-input"
+            type="file"
+            accept="image/*"
+            @change="onFileSelected"
+          />
+
+          <!-- HUD de Información y otros elementos -->
+          <div v-if="!profileNeedsRegister" class="profile-hud-section">
+            <HUD />
+          </div>
+
+          <!-- Libro de información (DEPRECADO - Se abre por el HUD) -->
+          <div v-if="!profileNeedsRegister" class="profile-book-section" style="display: none;">
+            <BookInfo :standaloneMode="true">
+              <template #content-0>
+                <p>Tu información personal irá aquí...</p>
+              </template>
+              <template #content-1>
+                <p>Describe lo que haces...</p>
+              </template>
+              <template #content-2>
+                <p>Muestra tus proyectos...</p>
+              </template>
+              <template #content-3>
+                <p>Datos de contacto...</p>
+              </template>
+            </BookInfo>
+          </div>
         </div>
       </div>
     </main>
@@ -248,6 +279,8 @@
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { ArrowLeft, Pencil, User } from "lucide-vue-next";
+import BookInfo from "@/components/BookInfo.vue";
+import HUD from "@/components/HUD.vue";
 import {
   getMyPlayer,
   getSession,
@@ -1242,6 +1275,23 @@ onUnmounted(() => {
 .user-btn.secondary {
   background: rgba(255, 218, 121, 0.12);
   color: #ffda79;
+}
+
+.profile-book-section {
+  margin-top: 3rem;
+  padding-top: 2rem;
+  border-top: 2px solid rgba(0, 255, 194, 0.3);
+  display: flex;
+  justify-content: center;
+}
+
+.profile-hud-section {
+  margin-top: 3rem;
+  padding-top: 2rem;
+  border-top: 2px solid rgba(0, 255, 194, 0.3);
+  display: flex;
+  justify-content: center;
+  width: 100%;
 }
 
 @media (max-width: 520px) {
