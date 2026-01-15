@@ -1,5 +1,20 @@
 <template>
   <div class="public-view">
+    <!-- VIP overlay (tipo stream/live) -->
+    <div class="vip-overlay" aria-label="VIP en vivo">
+      <div class="vip-card">
+        <div class="vip-avatar">
+          <img
+            v-if="vipProfile?.avatar_url"
+            :src="vipProfile.avatar_url"
+            alt="VIP"
+            class="vip-avatar-img"
+          />
+          <div v-else class="vip-avatar-fallback">VIP</div>
+        </div>
+      </div>
+    </div>
+
     <!-- Header retro -->
     <header class="arcade-header">
       <div class="title-container">
@@ -81,12 +96,16 @@
       <div class="stats-bar">
         <div class="stat-item">
           <span class="stat-label">Jugadores:</span>
-          <span class="stat-value">{{ players.length }}</span>
+          <span class="stat-value">{{ activePlayersCount }}</span>
         </div>
         <div class="stat-item">
           <span class="stat-label">En riesgo:</span>
-          <span class="stat-value danger">{{
-            players.filter((p) => p.lives <= 3).length
+          <span class="stat-value danger">{{ atRiskPlayersCount }}</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Eliminados:</span>
+          <span class="stat-value eliminated">{{
+            eliminatedPlayersCount
           }}</span>
         </div>
       </div>
@@ -193,6 +212,7 @@ import {
   getPlayerById,
   subscribeToPlayers,
   subscribeToLifeEvents,
+  getVipProfile,
   getSession,
   getMyPlayer,
   userLoginWithGoogle,
@@ -214,6 +234,8 @@ const router = useRouter();
 const bookIconUrl = "/icons/book.png";
 const players = ref([]);
 const deathNotifications = ref([]);
+const vipProfile = ref(null);
+let vipPollTimer = null;
 let notificationId = 0;
 let playersSubscription = null;
 let eventsSubscription = null;
@@ -279,6 +301,22 @@ const userLabel = computed(() => {
   return full || authUser.value?.email || "Usuario";
 });
 
+const activePlayersCount = computed(() => {
+  return players.value.filter((p) => Number(p?.lives ?? 0) > 0).length;
+});
+
+const eliminatedPlayersCount = computed(() => {
+  return players.value.filter((p) => Number(p?.lives ?? 0) === 0).length;
+});
+
+const atRiskPlayersCount = computed(() => {
+  // En riesgo: menos de 6 vidas, pero no eliminado
+  return players.value.filter((p) => {
+    const lives = Number(p?.lives ?? 0);
+    return lives > 0 && lives < 6;
+  }).length;
+});
+
 const profileNeedsRegister = computed(() => {
   // Registro pendiente si está autenticado pero aún no creó su jugador
   if (!authUser.value) return false;
@@ -291,7 +329,11 @@ async function loadAuth() {
   try {
     const session = await getSession();
     authUser.value = session?.user || null;
-    myPlayer.value = authUser.value ? await getMyPlayer() : null;
+    if (authUser.value) {
+      myPlayer.value = await getMyPlayer();
+    } else {
+      myPlayer.value = null;
+    }
   } catch (e) {
     authUser.value = null;
     myPlayer.value = null;
@@ -344,6 +386,30 @@ async function logout() {
   } finally {
     authLoading.value = false;
   }
+}
+
+async function refreshVipProfile() {
+  try {
+    vipProfile.value = await getVipProfile();
+  } catch {
+    vipProfile.value = vipProfile.value || null;
+  }
+}
+
+function startVipPolling() {
+  if (vipPollTimer) return;
+  refreshVipProfile();
+  vipPollTimer = window.setInterval(() => {
+    refreshVipProfile();
+  }, 15000);
+}
+
+function stopVipPolling() {
+  if (vipPollTimer) {
+    window.clearInterval(vipPollTimer);
+    vipPollTimer = null;
+  }
+  vipProfile.value = null;
 }
 
 function toggleProfileMenu() {
@@ -433,6 +499,9 @@ onMounted(async () => {
   // Cargar jugadores iniciales
   await loadPlayers();
 
+  // VIP en vista pública (para usuarios y visitantes)
+  startVipPolling();
+
   // Cargar sesión usuario (si existe)
   await loadAuth();
 
@@ -487,6 +556,8 @@ onUnmounted(() => {
   if (authSubscription) {
     authSubscription.unsubscribe();
   }
+
+  stopVipPolling();
 });
 
 function canNotify() {
@@ -805,11 +876,89 @@ function onKeydown(e) {
   border-bottom: 3px solid rgba(247, 65, 143, 0.3);
 }
 
+/* VIP overlay tipo stream/live */
+.vip-overlay {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 1006;
+  display: grid;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.vip-card {
+  justify-self: start;
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0;
+  align-items: center;
+  padding: 8px;
+  border: 2px solid rgba(0, 255, 194, 0.65);
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 0.75);
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.45),
+    inset 0 0 0 2px rgba(255, 255, 255, 0.05);
+  max-width: none;
+}
+
+.vip-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 16px;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.14),
+    rgba(0, 0, 0, 0.14) 2px,
+    transparent 2px,
+    transparent 4px
+  );
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.vip-avatar {
+  width: clamp(140px, 18vw, 220px);
+  height: clamp(140px, 18vw, 220px);
+  border-radius: 16px;
+  border: 2px solid rgba(0, 255, 194, 0.6);
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.6);
+  display: grid;
+  place-items: center;
+  box-shadow: inset 0 -10px 0 rgba(0, 0, 0, 0.6),
+    0 18px 40px rgba(0, 0, 0, 0.45);
+}
+
+.vip-avatar-img {
+  width: clamp(140px, 18vw, 220px);
+  height: clamp(140px, 18vw, 220px);
+  object-fit: cover;
+  image-rendering: pixelated;
+}
+
+.vip-avatar-fallback {
+  font-family: "Press Start 2P", monospace;
+  font-size: 1.05rem;
+  color: rgba(0, 255, 194, 0.95);
+  text-shadow: 0 0 12px rgba(0, 255, 194, 0.65);
+}
+
+@media (max-width: 520px) {
+  .vip-avatar {
+    width: clamp(120px, 30vw, 180px);
+    height: clamp(120px, 30vw, 180px);
+  }
+}
+
 .profile-menu {
   position: absolute;
   top: 12px;
   right: 12px;
-  z-index: 3;
+  left: auto;
+  z-index: 1005;
   display: inline-block;
   max-width: min(320px, calc(100% - 24px));
 }
@@ -1115,13 +1264,13 @@ function onKeydown(e) {
   display: flex;
   justify-content: center;
   flex-wrap: wrap;
-  gap: clamp(14px, 3vw, 40px);
+  gap: clamp(14px, 2.5vw, 34px);
   margin-top: 30px;
   padding: 20px;
   background: rgba(0, 0, 0, 0.6);
   border: 2px solid rgba(247, 65, 143, 0.3);
   border-radius: 8px;
-  width: min(520px, 100%);
+  width: min(720px, 100%);
   margin-left: auto;
   margin-right: auto;
 }
@@ -1152,6 +1301,11 @@ function onKeydown(e) {
   color: #f7418f;
   text-shadow: 0 0 15px rgba(247, 65, 143, 0.8);
   animation: dangerPulse 1s ease-in-out infinite;
+}
+
+.stat-value.eliminated {
+  color: #ff2a6d;
+  text-shadow: 0 0 15px rgba(255, 42, 109, 0.75);
 }
 
 @keyframes dangerPulse {
@@ -1427,6 +1581,11 @@ function onKeydown(e) {
   .profile-menu {
     top: 10px;
     right: 10px;
+  }
+
+  .vip-overlay {
+    top: 10px;
+    left: 10px;
   }
 
   .profile-name {

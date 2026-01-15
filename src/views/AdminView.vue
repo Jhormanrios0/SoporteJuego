@@ -44,9 +44,64 @@
           PANEL DE CONTROL
         </h1>
         <div class="admin-header-actions">
-          <button @click="handleLogout" class="btn-header btn-logout">
-            Cerrar sesión
-          </button>
+          <div
+            ref="profileMenuEl"
+            class="profile-menu"
+            @keydown.esc.stop.prevent="closeProfileMenu"
+          >
+            <button
+              class="profile-button"
+              type="button"
+              aria-label="Menú de perfil"
+              aria-haspopup="menu"
+              :aria-expanded="profileMenuOpen ? 'true' : 'false'"
+              @click.stop="toggleProfileMenu"
+              @keydown.enter.stop.prevent="toggleProfileMenu"
+              @keydown.space.stop.prevent="toggleProfileMenu"
+            >
+              <span class="profile-avatar">
+                <img
+                  v-if="adminProfile?.avatar_url"
+                  :src="adminProfile.avatar_url"
+                  :alt="adminLabel"
+                  class="profile-avatar-img"
+                />
+                <span v-else class="profile-avatar-fallback">VIP</span>
+              </span>
+
+              <span class="profile-meta">
+                <span class="profile-name">{{ adminLabel }}</span>
+              </span>
+
+              <span class="profile-caret" aria-hidden="true">▾</span>
+            </button>
+
+            <Transition name="pixel-pop">
+              <div
+                v-show="profileMenuOpen"
+                class="profile-dropdown"
+                role="menu"
+                aria-label="Opciones de perfil"
+              >
+                <button
+                  class="profile-dropdown-item"
+                  type="button"
+                  role="menuitem"
+                  @click="handleProfileMenuProfile"
+                >
+                  Perfil
+                </button>
+                <button
+                  class="profile-dropdown-item danger"
+                  type="button"
+                  role="menuitem"
+                  @click="handleProfileMenuLogout"
+                >
+                  Cerrar sesión
+                </button>
+              </div>
+            </Transition>
+          </div>
         </div>
       </header>
 
@@ -126,7 +181,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from "vue";
+import { computed, ref, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
 import { Settings, ArrowLeft } from "lucide-vue-next";
 import {
@@ -155,6 +210,16 @@ const loginPassword = ref("");
 const loginError = ref("");
 const loading = ref(false);
 
+const adminProfile = ref(null);
+// Menú de perfil (dropdown) como jugadores
+const profileMenuOpen = ref(false);
+const profileMenuEl = ref(null);
+
+const adminLabel = computed(() => {
+  const name = adminProfile.value?.display_name?.trim?.() || "";
+  return name || adminProfile.value?.email || "VIP";
+});
+
 // Players
 const players = ref([]);
 
@@ -177,10 +242,12 @@ const showResetPlayerModal = ref(false);
 const playerToReset = ref(null);
 
 onMounted(async () => {
+  document.addEventListener("click", onDocumentClick);
   await checkAuth();
 });
 
 onUnmounted(() => {
+  document.removeEventListener("click", onDocumentClick);
   stopSubscriptions();
 });
 
@@ -193,6 +260,7 @@ async function checkAuth() {
 
   try {
     const profile = await getMyProfile();
+    adminProfile.value = profile;
     isAuthenticated.value = !!profile?.is_admin;
   } catch {
     isAuthenticated.value = false;
@@ -216,6 +284,8 @@ async function handleLogin() {
     await adminLogin(loginEmail.value, loginPassword.value);
     const profile = await getMyProfile();
 
+    adminProfile.value = profile;
+
     if (!profile?.is_admin) {
       loginError.value = "No autorizado";
       await adminLogout();
@@ -234,11 +304,38 @@ async function handleLogin() {
   }
 }
 
+function toggleProfileMenu() {
+  profileMenuOpen.value = !profileMenuOpen.value;
+}
+
+function closeProfileMenu() {
+  profileMenuOpen.value = false;
+}
+
+function onDocumentClick(e) {
+  if (!profileMenuOpen.value) return;
+  const container = profileMenuEl.value;
+  if (!container) return;
+  if (container.contains(e.target)) return;
+  closeProfileMenu();
+}
+
+function handleProfileMenuProfile() {
+  closeProfileMenu();
+  router.push({ name: "vip-profile" });
+}
+
+async function handleProfileMenuLogout() {
+  closeProfileMenu();
+  await handleLogout();
+}
+
 async function handleLogout() {
   try {
     stopSubscriptions();
     await adminLogout();
     isAuthenticated.value = false;
+    adminProfile.value = null;
     loginEmail.value = "";
     loginPassword.value = "";
   } catch (error) {
@@ -545,9 +642,11 @@ function goToPublic() {
   margin: 0 auto 40px;
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   flex-wrap: wrap;
   gap: 20px;
+  position: relative;
+  z-index: 5;
 }
 
 .admin-title {
@@ -568,6 +667,203 @@ function goToPublic() {
 .admin-header-actions {
   display: flex;
   gap: 12px;
+  align-items: center;
+}
+
+/* Perfil dropdown (igual que jugadores) */
+.profile-menu {
+  position: relative;
+  display: inline-block;
+  max-width: min(320px, calc(100% - 24px));
+  z-index: 1006;
+}
+
+.profile-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 2px solid rgba(0, 255, 255, 0.7);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.65);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35),
+    inset 0 0 0 2px rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.92);
+  width: auto;
+  max-width: min(320px, calc(100vw - 24px));
+}
+
+.profile-button:hover {
+  filter: brightness(1.08);
+}
+
+.profile-button:active {
+  transform: translateY(2px);
+}
+
+.profile-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  border: 2px solid rgba(0, 255, 255, 0.6);
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.6);
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+}
+
+.profile-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  image-rendering: pixelated;
+}
+
+.profile-avatar-fallback {
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.6rem;
+  color: #00ffff;
+  text-shadow: 0 0 10px rgba(0, 255, 255, 0.6);
+}
+
+.profile-meta {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  text-align: left;
+}
+
+.profile-name {
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.62rem;
+  color: #00ffff;
+  text-shadow: 0 0 10px rgba(0, 255, 255, 0.55);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 230px;
+}
+
+.profile-caret {
+  margin-left: auto;
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.7rem;
+  color: rgba(0, 255, 255, 0.95);
+  text-shadow: 0 0 10px rgba(0, 255, 255, 0.55);
+  transition: transform 140ms ease;
+}
+
+.profile-button[aria-expanded="true"] .profile-caret {
+  transform: rotate(180deg);
+}
+
+.profile-dropdown {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  min-width: 100%;
+  border: 2px solid rgba(0, 255, 255, 0.55);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.82);
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.45),
+    inset 0 0 0 2px rgba(255, 255, 255, 0.05);
+  padding: 10px;
+  z-index: 1007;
+}
+
+.profile-dropdown::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.12),
+    rgba(0, 0, 0, 0.12) 2px,
+    transparent 2px,
+    transparent 4px
+  );
+  opacity: 0.45;
+}
+
+.profile-dropdown > * {
+  position: relative;
+  z-index: 1;
+}
+
+.pixel-pop-enter-active {
+  animation: pixelPopIn 180ms cubic-bezier(0.2, 0.9, 0.2, 1) both;
+  transform-origin: top right;
+}
+
+.pixel-pop-leave-active {
+  animation: pixelPopOut 120ms ease-in both;
+  transform-origin: top right;
+}
+
+@keyframes pixelPopIn {
+  0% {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+    filter: brightness(0.9);
+  }
+  70% {
+    opacity: 1;
+    transform: translateY(0) scale(1.02);
+    filter: brightness(1.1);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: brightness(1);
+  }
+}
+
+@keyframes pixelPopOut {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+
+.profile-dropdown-item {
+  width: 100%;
+  text-align: left;
+  border: 2px solid rgba(0, 255, 255, 0.45);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.55);
+  color: rgba(255, 255, 255, 0.92);
+  padding: 10px 12px;
+  cursor: pointer;
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.profile-dropdown-item + .profile-dropdown-item {
+  margin-top: 10px;
+}
+
+.profile-dropdown-item:hover {
+  filter: brightness(1.1);
+}
+
+.profile-dropdown-item:active {
+  transform: translateY(2px);
+}
+
+.profile-dropdown-item.danger {
+  border-color: rgba(247, 65, 143, 0.65);
+  color: #ffd1e6;
+  box-shadow: inset 0 0 0 2px rgba(247, 65, 143, 0.12);
 }
 
 .btn-header {
@@ -607,6 +903,170 @@ function goToPublic() {
 .btn-logout:hover {
   background: rgba(255, 0, 85, 0.2);
   box-shadow: 0 0 15px rgba(255, 0, 85, 0.5);
+}
+
+.btn-save {
+  border-color: #00ff88;
+  color: #00ff88;
+}
+
+.btn-save:hover {
+  background: rgba(0, 255, 136, 0.2);
+  box-shadow: 0 0 15px rgba(0, 255, 136, 0.5);
+}
+
+/* VIP editor */
+.vip-editor {
+  max-width: 1400px;
+  margin: 0 auto 26px;
+}
+
+.vip-editor-head {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.vip-editor-sub {
+  margin: 0;
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.62rem;
+  color: rgba(255, 255, 255, 0.65);
+  line-height: 1.5;
+}
+
+.vip-editor-card {
+  background: rgba(0, 0, 0, 0.75);
+  border: 3px solid rgba(0, 255, 255, 0.55);
+  border-radius: 10px;
+  padding: 16px;
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 16px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45),
+    inset 0 0 0 2px rgba(255, 255, 255, 0.05);
+}
+
+.vip-editor-avatar {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  border-radius: 12px;
+  border: 3px solid rgba(0, 255, 194, 0.6);
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.7);
+  box-shadow: inset 0 -10px 0 rgba(0, 0, 0, 0.6);
+}
+
+.vip-editor-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  image-rendering: pixelated;
+}
+
+.vip-editor-avatar-fallback {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.85rem;
+  color: #00ffff;
+  text-shadow: 0 0 12px rgba(0, 255, 255, 0.55);
+}
+
+.vip-editor-edit {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  border: 2px solid rgba(255, 218, 121, 0.9);
+  background: rgba(0, 0, 0, 0.7);
+  color: #ffda79;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  box-shadow: inset 0 -6px 0 rgba(0, 0, 0, 0.65),
+    0 12px 24px rgba(0, 0, 0, 0.35);
+}
+
+.vip-editor-edit:hover {
+  filter: brightness(1.12);
+}
+
+.vip-editor-edit:active {
+  transform: translateY(2px);
+}
+
+.vip-editor-busy {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.62rem;
+  color: #00ff88;
+  background: rgba(0, 0, 0, 0.55);
+  text-shadow: 0 0 14px rgba(0, 255, 136, 0.55);
+}
+
+.vip-editor-fields {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+
+.vip-label {
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.6rem;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.vip-input {
+  padding: 14px 14px;
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.75rem;
+  background: rgba(0, 0, 0, 0.55);
+  border: 3px solid rgba(0, 255, 255, 0.55);
+  border-radius: 6px;
+  color: #00ffff;
+}
+
+.vip-input:focus {
+  outline: none;
+  box-shadow: 0 0 18px rgba(0, 255, 255, 0.45);
+}
+
+.vip-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.vip-error {
+  margin: 0;
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.62rem;
+  color: #ff0055;
+  line-height: 1.45;
+}
+
+.vip-file-input {
+  display: none;
+}
+
+@media (max-width: 520px) {
+  .vip-editor-card {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+
+  .vip-editor-fields {
+    width: 100%;
+  }
 }
 
 .admin-section {

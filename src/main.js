@@ -6,6 +6,7 @@ import AdminView from "./views/AdminView.vue";
 import AuthCallbackView from "./views/AuthCallbackView.vue";
 import UserRegisterView from "./views/UserRegisterView.vue";
 import ProfileView from "./views/ProfileView.vue";
+import VipProfileView from "./views/VipProfileView.vue";
 import "./style.css";
 
 const routes = [
@@ -33,6 +34,11 @@ const routes = [
     path: "/profile",
     name: "profile",
     component: ProfileView,
+  },
+  {
+    path: "/vip/profile",
+    name: "vip-profile",
+    component: VipProfileView,
   },
 ];
 
