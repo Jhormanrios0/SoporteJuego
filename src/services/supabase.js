@@ -566,6 +566,25 @@ export async function getLifeEvents() {
 }
 
 /**
+ * Obtener historial de eventos de un jugador
+ * @param {number} playerId
+ * @param {{ limit?: number }} opts
+ * @returns {Promise<Array>}
+ */
+export async function getLifeEventsForPlayer(playerId, opts = {}) {
+  const limit = typeof opts?.limit === "number" ? opts.limit : 250;
+  const { data, error } = await supabase
+    .from("life_events")
+    .select("*")
+    .eq("player_id", playerId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error) throw error;
+  return data || [];
+}
+
+/**
  * Eliminar un jugador
  * @param {number} playerId
  */
