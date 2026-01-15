@@ -87,6 +87,19 @@ export async function updateMyProfile(updates) {
   return data;
 }
 
+/**
+ * Obtener el VIP público (admin) para mostrar en la vista general.
+ * Requiere la función SQL `public.get_vip_profile()`.
+ * @returns {Promise<{display_name: string, avatar_url: string|null} | null>}
+ */
+export async function getVipProfile() {
+  const { data, error } = await supabase.rpc("get_vip_profile");
+  if (error) throw error;
+  // rpc puede devolver array
+  if (Array.isArray(data)) return data[0] || null;
+  return data || null;
+}
+
 // ==================== SERVICIOS PÚBLICOS ====================
 
 /**
@@ -271,6 +284,39 @@ export async function deleteUserPlayerImageByPublicUrl(publicUrl) {
 
   const { error } = await supabase.storage.from("player-images").remove([path]);
   if (error) throw error;
+}
+
+/**
+ * Reemplaza el avatar del perfil (tabla public.profiles).
+ * 1) intenta borrar avatar_url anterior
+ * 2) sube nueva imagen a Storage (player-images/<uid>/...)
+ * 3) actualiza profiles.avatar_url
+ * @param {File} file
+ * @param {string} label
+ * @returns {Promise<object>} profile actualizado
+ */
+export async function replaceMyProfileAvatar(file, label = "vip") {
+  const current = await getMyProfile();
+  if (!current) throw new Error("No hay perfil cargado");
+
+  if (current.avatar_url) {
+    try {
+      await deleteUserPlayerImageByPublicUrl(current.avatar_url);
+    } catch (e) {
+      console.warn("[Storage] No se pudo borrar el avatar anterior:", e);
+    }
+  }
+
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError) throw userError;
+  if (!user) throw new Error("No hay sesión activa");
+
+  const newUrl = await uploadUserPlayerImage(file, user.id, label);
+  return await updateMyProfile({ avatar_url: newUrl });
 }
 
 /**

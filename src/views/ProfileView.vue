@@ -415,17 +415,19 @@ onUnmounted(() => {
   max-width: 1100px;
   margin: 0 auto 18px;
   position: relative;
-  z-index: 2;
+  z-index: 5;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
+  flex-wrap: wrap;
 }
 
 .profile-menu {
   position: relative;
   display: inline-block;
   max-width: min(320px, calc(100% - 24px));
+  z-index: 1006;
 }
 
 .profile-button {
@@ -523,6 +525,7 @@ onUnmounted(() => {
   box-shadow: 0 14px 32px rgba(0, 0, 0, 0.45),
     inset 0 0 0 2px rgba(255, 255, 255, 0.05);
   padding: 10px;
+  z-index: 1007;
 }
 
 .profile-dropdown::before {
