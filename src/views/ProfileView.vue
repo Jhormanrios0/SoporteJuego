@@ -157,6 +157,47 @@
             />
           </div>
 
+          <!-- HUD de Información y otros elementos -->
+          <div v-if="!profileNeedsRegister" class="profile-hud-section">
+            <HUD @open-history="openHistoryModal" />
+          </div>
+
+          <!-- Libro de información (DEPRECADO - Se abre por el HUD) -->
+          <div
+            v-if="!profileNeedsRegister"
+            class="profile-book-section"
+            style="display: none"
+          >
+            <BookInfo :standaloneMode="true">
+              <template #content-0>
+                <p>Tu información personal irá aquí...</p>
+              </template>
+              <template #content-1>
+                <p>Describe lo que haces...</p>
+              </template>
+              <template #content-2>
+                <p>Muestra tus proyectos...</p>
+              </template>
+              <template #content-3>
+                <p>Datos de contacto...</p>
+              </template>
+            </BookInfo>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Modal Historial (desde el HUD) -->
+    <Transition name="modal-fade">
+      <div
+        v-if="isHistoryOpen"
+        class="history-modal-overlay"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Historial de vidas"
+        @click="closeHistoryModal"
+      >
+        <div class="history-modal-content" @click.stop>
           <section class="history-panel" aria-label="Historial de vidas">
             <div class="history-head">
               <h2 class="history-title">HISTORIAL DE VIDAS</h2>
@@ -239,35 +280,16 @@
             </div>
           </section>
 
-          <!-- HUD de Información y otros elementos -->
-          <div v-if="!profileNeedsRegister" class="profile-hud-section">
-            <HUD />
-          </div>
-
-          <!-- Libro de información (DEPRECADO - Se abre por el HUD) -->
-          <div
-            v-if="!profileNeedsRegister"
-            class="profile-book-section"
-            style="display: none"
+          <button
+            class="user-btn secondary history-close"
+            type="button"
+            @click="closeHistoryModal"
           >
-            <BookInfo :standaloneMode="true">
-              <template #content-0>
-                <p>Tu información personal irá aquí...</p>
-              </template>
-              <template #content-1>
-                <p>Describe lo que haces...</p>
-              </template>
-              <template #content-2>
-                <p>Muestra tus proyectos...</p>
-              </template>
-              <template #content-3>
-                <p>Datos de contacto...</p>
-              </template>
-            </BookInfo>
-          </div>
+            CERRAR
+          </button>
         </div>
       </div>
-    </main>
+    </Transition>
   </div>
 </template>
 
@@ -309,6 +331,7 @@ const profileMenuEl = ref(null);
 const lifeHistoryLoading = ref(false);
 const lifeHistoryError = ref("");
 const lifeEvents = ref([]);
+const isHistoryOpen = ref(false);
 
 const profileNeedsRegister = computed(
   () => !!authUser.value && !myPlayer.value
@@ -479,6 +502,18 @@ function onKeydown(e) {
   if (e.key === "Escape" && profileMenuOpen.value) {
     closeProfileMenu();
   }
+
+  if (e.key === "Escape" && isHistoryOpen.value) {
+    closeHistoryModal();
+  }
+}
+
+function openHistoryModal() {
+  isHistoryOpen.value = true;
+}
+
+function closeHistoryModal() {
+  isHistoryOpen.value = false;
 }
 
 function goHome() {
@@ -1034,6 +1069,44 @@ onUnmounted(() => {
   line-height: 1.45;
 }
 
+.history-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(0, 0, 0, 0.82);
+  backdrop-filter: blur(2px);
+}
+
+.history-modal-content {
+  width: min(980px, 100%);
+  max-height: 92vh;
+  overflow: auto;
+  border-radius: 12px;
+  border: 3px solid rgba(0, 255, 194, 0.55);
+  background: rgba(0, 0, 0, 0.9);
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.65), 0 0 26px rgba(0, 255, 194, 0.18);
+  padding: 14px;
+}
+
+.history-close {
+  width: 100%;
+  justify-content: center;
+  margin-top: 12px;
+}
+
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+  transition: opacity 0.22s ease;
+}
+
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+  opacity: 0;
+}
+
 @media (max-width: 520px) {
   .history-event-main {
     grid-template-columns: 1fr;
@@ -1288,6 +1361,9 @@ onUnmounted(() => {
   display: flex;
   justify-content: center;
   width: 100%;
+  position: relative;
+  z-index: 20;
+  overflow: visible;
 }
 
 @media (max-width: 520px) {
