@@ -241,6 +241,81 @@ export async function uploadUserPlayerImage(file, userId, label = "player") {
 }
 
 /**
+ * Extrae el path del objeto en Storage a partir de una URL pública.
+ * Soporta URLs tipo:
+ * https://<project>.supabase.co/storage/v1/object/public/<bucket>/<path>
+ * @param {string} publicUrl
+ * @param {string} bucket
+ * @returns {string|null}
+ */
+export function extractStoragePathFromPublicUrl(
+  publicUrl,
+  bucket = "player-images"
+) {
+  if (!publicUrl) return null;
+  const marker = `/object/public/${bucket}/`;
+  const idx = publicUrl.indexOf(marker);
+  if (idx === -1) return null;
+  const path = publicUrl.slice(idx + marker.length);
+  return path ? decodeURIComponent(path) : null;
+}
+
+/**
+ * Elimina una imagen del bucket 'player-images' usando su URL pública (best-effort).
+ * Requiere policy de Storage para DELETE por uid/%.
+ * @param {string|null} publicUrl
+ */
+export async function deleteUserPlayerImageByPublicUrl(publicUrl) {
+  const path = extractStoragePathFromPublicUrl(publicUrl, "player-images");
+  if (!path) return;
+
+  const { error } = await supabase.storage.from("player-images").remove([path]);
+  if (error) throw error;
+}
+
+/**
+ * Reemplaza la imagen del jugador del usuario autenticado:
+ * 1) intenta borrar la imagen anterior
+ * 2) sube la nueva imagen
+ * 3) actualiza players.image_url
+ * @param {File} file
+ * @param {string} label
+ * @returns {Promise<object>} player actualizado
+ */
+export async function replaceMyPlayerImage(file, label = "player") {
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError) throw userError;
+  if (!user) throw new Error("No hay sesión activa");
+
+  const current = await getMyPlayer();
+  if (!current) throw new Error("No existe un jugador asociado a esta cuenta");
+
+  // Best-effort: si no se puede borrar (por policy o path), seguimos igual.
+  if (current.image_url) {
+    try {
+      await deleteUserPlayerImageByPublicUrl(current.image_url);
+    } catch (e) {
+      console.warn("[Storage] No se pudo borrar la imagen anterior:", e);
+    }
+  }
+
+  const newUrl = await uploadUserPlayerImage(file, user.id, label);
+  const { data, error } = await supabase
+    .from("players")
+    .update({ image_url: newUrl })
+    .eq("id", current.id)
+    .select("*")
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+/**
  * Obtener el jugador asociado al usuario autenticado (players.user_id)
  * @returns {Promise<object|null>}
  */
