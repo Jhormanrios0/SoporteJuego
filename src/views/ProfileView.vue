@@ -237,15 +237,7 @@
                 </div>
               </div>
             </div>
-          </div>
-
-          <input
-            ref="fileInputEl"
-            class="file-input"
-            type="file"
-            accept="image/*"
-            @change="onFileSelected"
-          />
+          </section>
 
           <!-- HUD de Información y otros elementos -->
           <div v-if="!profileNeedsRegister" class="profile-hud-section">
@@ -253,7 +245,11 @@
           </div>
 
           <!-- Libro de información (DEPRECADO - Se abre por el HUD) -->
-          <div v-if="!profileNeedsRegister" class="profile-book-section" style="display: none;">
+          <div
+            v-if="!profileNeedsRegister"
+            class="profile-book-section"
+            style="display: none"
+          >
             <BookInfo :standaloneMode="true">
               <template #content-0>
                 <p>Tu información personal irá aquí...</p>
