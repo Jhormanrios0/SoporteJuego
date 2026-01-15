@@ -86,74 +86,158 @@
           </button>
         </div>
 
-        <div v-else class="profile-card">
-          <div class="profile-hero">
-            <div
-              class="avatar-frame"
-              :data-busy="isUploading ? 'true' : 'false'"
-            >
-              <img
-                v-if="activeImageUrl"
-                :src="activeImageUrl"
-                :alt="fullName || userLabel"
-                class="avatar-img"
-              />
-              <div v-else class="avatar-fallback">
-                <User :size="44" />
-              </div>
-
-              <button
-                class="avatar-edit"
-                type="button"
-                :disabled="isUploading || profileNeedsRegister"
-                @click="pickNewAvatar"
-                @keydown.enter.prevent="pickNewAvatar"
-                @keydown.space.prevent="pickNewAvatar"
-                aria-label="Cambiar imagen"
-                :title="
-                  profileNeedsRegister
-                    ? 'Completa el registro primero'
-                    : 'Cambiar imagen'
-                "
+        <div v-else class="profile-sections">
+          <div class="profile-card">
+            <div class="profile-hero">
+              <div
+                class="avatar-frame"
+                :data-busy="isUploading ? 'true' : 'false'"
               >
-                <Pencil :size="18" />
-              </button>
+                <img
+                  v-if="activeImageUrl"
+                  :src="activeImageUrl"
+                  :alt="fullName || userLabel"
+                  class="avatar-img"
+                />
+                <div v-else class="avatar-fallback">
+                  <User :size="44" />
+                </div>
 
-              <div v-if="isUploading" class="avatar-busy" aria-hidden="true">
-                <span class="avatar-busy-text">Cargando…</span>
-              </div>
-            </div>
-
-            <div class="identity">
-              <div class="identity-tag">JUGADOR</div>
-              <div class="identity-name">{{ fullName || userLabel }}</div>
-              <div class="identity-sub">{{ authUser?.email }}</div>
-
-              <div v-if="profileNeedsRegister" class="identity-warn">
-                Tu registro está pendiente. Completa nombre y apellido para
-                personalizar.
                 <button
-                  class="user-btn secondary"
+                  class="avatar-edit"
                   type="button"
-                  @click="goRegister"
+                  :disabled="isUploading || profileNeedsRegister"
+                  @click="pickNewAvatar"
+                  @keydown.enter.prevent="pickNewAvatar"
+                  @keydown.space.prevent="pickNewAvatar"
+                  aria-label="Cambiar imagen"
+                  :title="
+                    profileNeedsRegister
+                      ? 'Completa el registro primero'
+                      : 'Cambiar imagen'
+                  "
                 >
-                  Completar registro
+                  <Pencil :size="18" />
                 </button>
+
+                <div v-if="isUploading" class="avatar-busy" aria-hidden="true">
+                  <span class="avatar-busy-text">Cargando…</span>
+                </div>
               </div>
 
-              <div v-if="imageError" class="identity-error">
-                {{ imageError }}
+              <div class="identity">
+                <div class="identity-tag">JUGADOR</div>
+                <div class="identity-name">{{ fullName || userLabel }}</div>
+                <div class="identity-sub">{{ authUser?.email }}</div>
+
+                <div v-if="profileNeedsRegister" class="identity-warn">
+                  Tu registro está pendiente. Completa nombre y apellido para
+                  personalizar.
+                  <button
+                    class="user-btn secondary"
+                    type="button"
+                    @click="goRegister"
+                  >
+                    Completar registro
+                  </button>
+                </div>
+
+                <div v-if="imageError" class="identity-error">
+                  {{ imageError }}
+                </div>
               </div>
             </div>
+
+            <input
+              ref="fileInputEl"
+              class="file-input"
+              type="file"
+              accept="image/*"
+              @change="onFileSelected"
+            />
           </div>
 
-          <input
-            ref="fileInputEl"
-            class="file-input"
-            type="file"
-            accept="image/*"
-            @change="onFileSelected"
-          />
+          <section class="history-panel" aria-label="Historial de vidas">
+            <div class="history-head">
+              <h2 class="history-title">HISTORIAL DE VIDAS</h2>
+              <button
+                class="user-btn secondary history-refresh"
+                type="button"
+                :disabled="lifeHistoryLoading || !myPlayer"
+                @click="refreshLifeHistory"
+              >
+                {{ lifeHistoryLoading ? "CARGANDO…" : "ACTUALIZAR" }}
+              </button>
+            </div>
+
+            <p class="history-sub">
+              Aquí ves las vidas que te han quitado por mes (con motivo y nota).
+            </p>
+
+            <div v-if="!myPlayer" class="history-empty">
+              <p class="history-empty-title">SIN REGISTRO</p>
+              <p class="history-empty-sub">
+                Completa el registro para ver tu historial.
+              </p>
+            </div>
+
+            <div v-else>
+              <p v-if="lifeHistoryError" class="history-error">
+                {{ lifeHistoryError }}
+              </p>
+
+              <div
+                v-else-if="lifeLossGroups.length === 0"
+                class="history-empty"
+              >
+                <p class="history-empty-title">SIN EVENTOS</p>
+                <p class="history-empty-sub">
+                  Aún no tienes vidas quitadas registradas.
+                </p>
+              </div>
+
+              <div v-else class="history-groups">
+                <div
+                  v-for="group in lifeLossGroups"
+                  :key="group.key"
+                  class="history-month"
+                >
+                  <div class="history-month-head">
+                    <div class="history-month-label">{{ group.label }}</div>
+                    <div class="history-month-total">
+                      -{{ group.total }} vidas
+                    </div>
+                  </div>
+
+                  <div class="history-events">
+                    <div
+                      v-for="ev in group.events"
+                      :key="ev.id"
+                      class="history-event"
+                    >
+                      <div class="history-event-main">
+                        <span class="history-event-date">
+                          {{ formatEventDate(ev.created_at) }}
+                        </span>
+                        <span class="history-event-amount">
+                          -{{ Math.abs(ev.delta) }}
+                        </span>
+                        <span class="history-event-reason">
+                          {{ normalizeReason(ev.reason) || "Sin motivo" }}
+                        </span>
+                      </div>
+                      <div
+                        v-if="String(ev.admin_message || '').trim()"
+                        class="history-event-note"
+                      >
+                        Nota admin: {{ ev.admin_message }}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
         </div>
       </div>
     </main>
@@ -167,6 +251,7 @@ import { ArrowLeft, Pencil, User } from "lucide-vue-next";
 import {
   getMyPlayer,
   getSession,
+  getLifeEventsForPlayer,
   replaceMyPlayerImage,
   supabase,
   userLogout,
@@ -191,6 +276,11 @@ const imageError = ref("");
 const profileMenuOpen = ref(false);
 const profileMenuEl = ref(null);
 
+// Historial de vidas
+const lifeHistoryLoading = ref(false);
+const lifeHistoryError = ref("");
+const lifeEvents = ref([]);
+
 const profileNeedsRegister = computed(
   () => !!authUser.value && !myPlayer.value
 );
@@ -213,6 +303,83 @@ const activeImageUrl = computed(() => {
   return previewUrl.value || myPlayer.value?.image_url || "";
 });
 
+const lifeLossEvents = computed(() => {
+  return (lifeEvents.value || []).filter((ev) => Number(ev?.delta ?? 0) < 0);
+});
+
+const lifeLossGroups = computed(() => {
+  const formatter = new Intl.DateTimeFormat("es-ES", {
+    month: "long",
+    year: "numeric",
+  });
+
+  const byKey = new Map();
+  for (const ev of lifeLossEvents.value) {
+    const createdAt = ev?.created_at;
+    const date = createdAt ? new Date(createdAt) : null;
+    if (!date || Number.isNaN(date.getTime())) continue;
+    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
+      2,
+      "0"
+    )}`;
+    if (!byKey.has(key)) {
+      const label = String(
+        formatter.format(new Date(date.getFullYear(), date.getMonth(), 1))
+      ).toUpperCase();
+      byKey.set(key, { key, label, total: 0, events: [] });
+    }
+    const group = byKey.get(key);
+    group.total += Math.abs(Number(ev?.delta ?? 0));
+    group.events.push(ev);
+  }
+
+  return Array.from(byKey.values()).sort((a, b) => b.key.localeCompare(a.key));
+});
+
+function normalizeReason(reason) {
+  const raw = String(reason || "").trim();
+  if (!raw) return "";
+  const nickname = String(myPlayer.value?.nickname || "").trim();
+  if (!nickname) return raw;
+  const lower = raw.toLowerCase();
+  const prefix = `${nickname.toLowerCase()} `;
+  if (lower.startsWith(prefix)) {
+    return raw.slice(nickname.length + 1).trim();
+  }
+  return raw;
+}
+
+function formatEventDate(value) {
+  try {
+    const date = value ? new Date(value) : null;
+    if (!date || Number.isNaN(date.getTime())) return "";
+    return new Intl.DateTimeFormat("es-ES", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(date);
+  } catch {
+    return "";
+  }
+}
+
+async function refreshLifeHistory() {
+  if (!myPlayer.value?.id) return;
+  lifeHistoryError.value = "";
+  lifeHistoryLoading.value = true;
+  try {
+    lifeEvents.value = await getLifeEventsForPlayer(myPlayer.value.id);
+  } catch (e) {
+    console.error("[Profile] Error cargando historial:", e);
+    lifeHistoryError.value =
+      e?.message || "No se pudo cargar el historial de vidas";
+  } finally {
+    lifeHistoryLoading.value = false;
+  }
+}
+
 async function loadAuth() {
   authError.value = "";
   authLoading.value = true;
@@ -225,8 +392,15 @@ async function loadAuth() {
       } catch {
         myPlayer.value = null;
       }
+
+      if (myPlayer.value?.id) {
+        await refreshLifeHistory();
+      } else {
+        lifeEvents.value = [];
+      }
     } else {
       myPlayer.value = null;
+      lifeEvents.value = [];
     }
   } catch (e) {
     authError.value = e?.message || "No se pudo cargar la sesión";
@@ -360,8 +534,15 @@ onMounted(async () => {
         } catch {
           myPlayer.value = null;
         }
+
+        if (myPlayer.value?.id) {
+          await refreshLifeHistory();
+        } else {
+          lifeEvents.value = [];
+        }
       } else {
         myPlayer.value = null;
+        lifeEvents.value = [];
       }
     }
   ).data.subscription;
@@ -666,6 +847,168 @@ onUnmounted(() => {
 .profile-card {
   display: grid;
   gap: 16px;
+}
+
+.profile-sections {
+  display: grid;
+  gap: 18px;
+}
+
+.history-panel {
+  border: 2px solid rgba(247, 65, 143, 0.35);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.55);
+  padding: clamp(14px, 2vw, 18px);
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.05),
+    0 14px 34px rgba(0, 0, 0, 0.35);
+}
+
+.history-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.history-title {
+  margin: 0;
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.85rem;
+  color: #ff2a6d;
+  text-shadow: 0 0 12px rgba(255, 42, 109, 0.5);
+  letter-spacing: 1px;
+}
+
+.history-sub {
+  margin: 10px 0 0;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.9rem;
+}
+
+.history-refresh {
+  min-width: 140px;
+}
+
+.history-error {
+  margin: 10px 0 0;
+  color: #ffda79;
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.6rem;
+  line-height: 1.5;
+}
+
+.history-empty {
+  margin-top: 14px;
+  padding: 14px;
+  border: 2px dashed rgba(0, 255, 194, 0.25);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.history-empty-title {
+  margin: 0;
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.7rem;
+  color: #00ffc2;
+}
+
+.history-empty-sub {
+  margin: 10px 0 0;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.history-groups {
+  margin-top: 14px;
+  display: grid;
+  gap: 14px;
+}
+
+.history-month {
+  border: 2px solid rgba(0, 255, 194, 0.22);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+
+.history-month-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  background: rgba(0, 255, 194, 0.06);
+  border-bottom: 1px solid rgba(0, 255, 194, 0.18);
+}
+
+.history-month-label {
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.6rem;
+  color: rgba(0, 255, 194, 0.95);
+  text-shadow: 0 0 10px rgba(0, 255, 194, 0.45);
+}
+
+.history-month-total {
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.6rem;
+  color: #ff2a6d;
+  text-shadow: 0 0 10px rgba(255, 42, 109, 0.45);
+}
+
+.history-events {
+  padding: 10px 14px 14px;
+  display: grid;
+  gap: 10px;
+}
+
+.history-event {
+  padding: 10px 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.28);
+}
+
+.history-event-main {
+  display: grid;
+  grid-template-columns: 120px 56px 1fr;
+  gap: 10px;
+  align-items: center;
+}
+
+.history-event-date {
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.55rem;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.history-event-amount {
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.7rem;
+  color: #ff2a6d;
+  text-shadow: 0 0 10px rgba(255, 42, 109, 0.4);
+}
+
+.history-event-reason {
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.58rem;
+  color: rgba(255, 255, 255, 0.88);
+  line-height: 1.45;
+}
+
+.history-event-note {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(255, 218, 121, 0.25);
+  color: rgba(255, 218, 121, 0.95);
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.55rem;
+  line-height: 1.45;
+}
+
+@media (max-width: 520px) {
+  .history-event-main {
+    grid-template-columns: 1fr;
+  }
 }
 
 .profile-hero {
