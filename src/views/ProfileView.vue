@@ -187,108 +187,18 @@
       </div>
     </main>
 
-    <!-- Modal Historial (desde el HUD) -->
+    <!-- Modal Historial con diseño de libro Minecraft (desde el HUD) -->
     <Transition name="modal-fade">
-      <div
+      <HistoryBook
         v-if="isHistoryOpen"
-        class="history-modal-overlay"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Historial de vidas"
-        @click="closeHistoryModal"
-      >
-        <div class="history-modal-content" @click.stop>
-          <section class="history-panel" aria-label="Historial de vidas">
-            <div class="history-head">
-              <h2 class="history-title">HISTORIAL DE VIDAS</h2>
-              <button
-                class="user-btn secondary history-refresh"
-                type="button"
-                :disabled="lifeHistoryLoading || !myPlayer"
-                @click="refreshLifeHistory"
-              >
-                {{ lifeHistoryLoading ? "CARGANDO…" : "ACTUALIZAR" }}
-              </button>
-            </div>
-
-            <p class="history-sub">
-              Aquí ves las vidas que te han quitado por mes (con motivo y nota).
-            </p>
-
-            <div v-if="!myPlayer" class="history-empty">
-              <p class="history-empty-title">SIN REGISTRO</p>
-              <p class="history-empty-sub">
-                Completa el registro para ver tu historial.
-              </p>
-            </div>
-
-            <div v-else>
-              <p v-if="lifeHistoryError" class="history-error">
-                {{ lifeHistoryError }}
-              </p>
-
-              <div
-                v-else-if="lifeLossGroups.length === 0"
-                class="history-empty"
-              >
-                <p class="history-empty-title">SIN EVENTOS</p>
-                <p class="history-empty-sub">
-                  Aún no tienes vidas quitadas registradas.
-                </p>
-              </div>
-
-              <div v-else class="history-groups">
-                <div
-                  v-for="group in lifeLossGroups"
-                  :key="group.key"
-                  class="history-month"
-                >
-                  <div class="history-month-head">
-                    <div class="history-month-label">{{ group.label }}</div>
-                    <div class="history-month-total">
-                      -{{ group.total }} vidas
-                    </div>
-                  </div>
-
-                  <div class="history-events">
-                    <div
-                      v-for="ev in group.events"
-                      :key="ev.id"
-                      class="history-event"
-                    >
-                      <div class="history-event-main">
-                        <span class="history-event-date">
-                          {{ formatEventDate(ev.created_at) }}
-                        </span>
-                        <span class="history-event-amount">
-                          -{{ Math.abs(ev.delta) }}
-                        </span>
-                        <span class="history-event-reason">
-                          {{ normalizeReason(ev.reason) || "Sin motivo" }}
-                        </span>
-                      </div>
-                      <div
-                        v-if="String(ev.admin_message || '').trim()"
-                        class="history-event-note"
-                      >
-                        Nota admin: {{ ev.admin_message }}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <button
-            class="user-btn secondary history-close"
-            type="button"
-            @click="closeHistoryModal"
-          >
-            CERRAR
-          </button>
-        </div>
-      </div>
+        :events="lifeEvents"
+        :loading="lifeHistoryLoading"
+        :error="lifeHistoryError"
+        :hasPlayer="!!myPlayer"
+        :playerNickname="myPlayer?.nickname || ''"
+        @close="closeHistoryModal"
+        @refresh="refreshLifeHistory"
+      />
     </Transition>
   </div>
 </template>
@@ -299,6 +209,7 @@ import { useRouter } from "vue-router";
 import { ArrowLeft, Pencil, User } from "lucide-vue-next";
 import BookInfo from "@/components/BookInfo.vue";
 import HUD from "@/components/HUD.vue";
+import HistoryBook from "@/components/HistoryBook.vue";
 import {
   getMyPlayer,
   getSession,
@@ -354,68 +265,6 @@ const fullName = computed(() => {
 const activeImageUrl = computed(() => {
   return previewUrl.value || myPlayer.value?.image_url || "";
 });
-
-const lifeLossEvents = computed(() => {
-  return (lifeEvents.value || []).filter((ev) => Number(ev?.delta ?? 0) < 0);
-});
-
-const lifeLossGroups = computed(() => {
-  const formatter = new Intl.DateTimeFormat("es-ES", {
-    month: "long",
-    year: "numeric",
-  });
-
-  const byKey = new Map();
-  for (const ev of lifeLossEvents.value) {
-    const createdAt = ev?.created_at;
-    const date = createdAt ? new Date(createdAt) : null;
-    if (!date || Number.isNaN(date.getTime())) continue;
-    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
-      2,
-      "0"
-    )}`;
-    if (!byKey.has(key)) {
-      const label = String(
-        formatter.format(new Date(date.getFullYear(), date.getMonth(), 1))
-      ).toUpperCase();
-      byKey.set(key, { key, label, total: 0, events: [] });
-    }
-    const group = byKey.get(key);
-    group.total += Math.abs(Number(ev?.delta ?? 0));
-    group.events.push(ev);
-  }
-
-  return Array.from(byKey.values()).sort((a, b) => b.key.localeCompare(a.key));
-});
-
-function normalizeReason(reason) {
-  const raw = String(reason || "").trim();
-  if (!raw) return "";
-  const nickname = String(myPlayer.value?.nickname || "").trim();
-  if (!nickname) return raw;
-  const lower = raw.toLowerCase();
-  const prefix = `${nickname.toLowerCase()} `;
-  if (lower.startsWith(prefix)) {
-    return raw.slice(nickname.length + 1).trim();
-  }
-  return raw;
-}
-
-function formatEventDate(value) {
-  try {
-    const date = value ? new Date(value) : null;
-    if (!date || Number.isNaN(date.getTime())) return "";
-    return new Intl.DateTimeFormat("es-ES", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(date);
-  } catch {
-    return "";
-  }
-}
 
 async function refreshLifeHistory() {
   if (!myPlayer.value?.id) return;
@@ -918,185 +767,6 @@ onUnmounted(() => {
   gap: 18px;
 }
 
-.history-panel {
-  border: 2px solid rgba(247, 65, 143, 0.35);
-  border-radius: 12px;
-  background: rgba(0, 0, 0, 0.55);
-  padding: clamp(14px, 2vw, 18px);
-  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.05),
-    0 14px 34px rgba(0, 0, 0, 0.35);
-}
-
-.history-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.history-title {
-  margin: 0;
-  font-family: "Press Start 2P", monospace;
-  font-size: 0.85rem;
-  color: #ff2a6d;
-  text-shadow: 0 0 12px rgba(255, 42, 109, 0.5);
-  letter-spacing: 1px;
-}
-
-.history-sub {
-  margin: 10px 0 0;
-  color: rgba(255, 255, 255, 0.72);
-  font-size: 0.9rem;
-}
-
-.history-refresh {
-  min-width: 140px;
-}
-
-.history-error {
-  margin: 10px 0 0;
-  color: #ffda79;
-  font-family: "Press Start 2P", monospace;
-  font-size: 0.6rem;
-  line-height: 1.5;
-}
-
-.history-empty {
-  margin-top: 14px;
-  padding: 14px;
-  border: 2px dashed rgba(0, 255, 194, 0.25);
-  border-radius: 12px;
-  background: rgba(0, 0, 0, 0.35);
-}
-
-.history-empty-title {
-  margin: 0;
-  font-family: "Press Start 2P", monospace;
-  font-size: 0.7rem;
-  color: #00ffc2;
-}
-
-.history-empty-sub {
-  margin: 10px 0 0;
-  color: rgba(255, 255, 255, 0.72);
-}
-
-.history-groups {
-  margin-top: 14px;
-  display: grid;
-  gap: 14px;
-}
-
-.history-month {
-  border: 2px solid rgba(0, 255, 194, 0.22);
-  border-radius: 12px;
-  background: rgba(0, 0, 0, 0.35);
-  overflow: hidden;
-}
-
-.history-month-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 12px 14px;
-  background: rgba(0, 255, 194, 0.06);
-  border-bottom: 1px solid rgba(0, 255, 194, 0.18);
-}
-
-.history-month-label {
-  font-family: "Press Start 2P", monospace;
-  font-size: 0.6rem;
-  color: rgba(0, 255, 194, 0.95);
-  text-shadow: 0 0 10px rgba(0, 255, 194, 0.45);
-}
-
-.history-month-total {
-  font-family: "Press Start 2P", monospace;
-  font-size: 0.6rem;
-  color: #ff2a6d;
-  text-shadow: 0 0 10px rgba(255, 42, 109, 0.45);
-}
-
-.history-events {
-  padding: 10px 14px 14px;
-  display: grid;
-  gap: 10px;
-}
-
-.history-event {
-  padding: 10px 10px 12px;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(0, 0, 0, 0.28);
-}
-
-.history-event-main {
-  display: grid;
-  grid-template-columns: 120px 56px 1fr;
-  gap: 10px;
-  align-items: center;
-}
-
-.history-event-date {
-  font-family: "Press Start 2P", monospace;
-  font-size: 0.55rem;
-  color: rgba(255, 255, 255, 0.75);
-}
-
-.history-event-amount {
-  font-family: "Press Start 2P", monospace;
-  font-size: 0.7rem;
-  color: #ff2a6d;
-  text-shadow: 0 0 10px rgba(255, 42, 109, 0.4);
-}
-
-.history-event-reason {
-  font-family: "Press Start 2P", monospace;
-  font-size: 0.58rem;
-  color: rgba(255, 255, 255, 0.88);
-  line-height: 1.45;
-}
-
-.history-event-note {
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px dashed rgba(255, 218, 121, 0.25);
-  color: rgba(255, 218, 121, 0.95);
-  font-family: "Press Start 2P", monospace;
-  font-size: 0.55rem;
-  line-height: 1.45;
-}
-
-.history-modal-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-  display: grid;
-  place-items: center;
-  padding: 18px;
-  background: rgba(0, 0, 0, 0.82);
-  backdrop-filter: blur(2px);
-}
-
-.history-modal-content {
-  width: min(980px, 100%);
-  max-height: 92vh;
-  overflow: auto;
-  border-radius: 12px;
-  border: 3px solid rgba(0, 255, 194, 0.55);
-  background: rgba(0, 0, 0, 0.9);
-  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.65), 0 0 26px rgba(0, 255, 194, 0.18);
-  padding: 14px;
-}
-
-.history-close {
-  width: 100%;
-  justify-content: center;
-  margin-top: 12px;
-}
-
 .modal-fade-enter-active,
 .modal-fade-leave-active {
   transition: opacity 0.22s ease;
@@ -1105,12 +775,6 @@ onUnmounted(() => {
 .modal-fade-enter-from,
 .modal-fade-leave-to {
   opacity: 0;
-}
-
-@media (max-width: 520px) {
-  .history-event-main {
-    grid-template-columns: 1fr;
-  }
 }
 
 .profile-hero {
