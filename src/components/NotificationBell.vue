@@ -76,6 +76,20 @@
                     {{ formatTime(notification.createdAt) }}
                   </span>
                 </div>
+
+                <!-- Status del jugador que envió -->
+                <div
+                  v-if="notification.senderStatus"
+                  class="notification-status"
+                  :style="{
+                    '--status-color':
+                      notification.senderStatus.color || '#8b7355',
+                    borderColor: notification.senderStatus.color || '#8b7355',
+                  }"
+                >
+                  {{ notification.senderStatus.status || "Sin estado" }}
+                </div>
+
                 <p class="notification-message">
                   {{ notification.message }}
                 </p>
@@ -84,19 +98,39 @@
                 </span>
               </div>
 
-              <button
-                class="notification-dismiss"
-                @click.stop="dismissNotification(notification.id)"
-                aria-label="Descartar"
-              >
-                <X :size="14" />
-              </button>
+              <div class="notification-actions">
+                <button
+                  v-if="!notification.read"
+                  class="notification-mark-read"
+                  @click.stop="markAsRead(notification.id)"
+                  aria-label="Marcar como leída"
+                  title="Marcar como leída"
+                >
+                  <Check :size="14" />
+                </button>
+                <button
+                  class="notification-dismiss"
+                  @click.stop="dismissNotification(notification.id)"
+                  aria-label="Descartar"
+                  title="Eliminar"
+                >
+                  <X :size="14" />
+                </button>
+              </div>
             </div>
           </TransitionGroup>
         </div>
 
-        <div v-if="notifications.length > 0" class="panel-footer">
-          <button class="clear-all-btn" @click="clearAllNotifications">
+        <div class="panel-footer">
+          <button class="history-btn" @click="openHistory">
+            <History :size="14" />
+            Ver historial
+          </button>
+          <button
+            v-if="notifications.length > 0"
+            class="clear-all-btn"
+            @click="clearAllNotifications"
+          >
             <Trash2 :size="14" />
             Limpiar todo
           </button>
@@ -116,6 +150,8 @@ import {
   MessageCircle,
   X,
   Trash2,
+  Check,
+  History,
 } from "lucide-vue-next";
 
 const props = defineProps({
@@ -132,6 +168,7 @@ const emit = defineEmits([
   "dismiss",
   "clear-all",
   "notification-click",
+  "open-history",
 ]);
 
 const isOpen = ref(false);
@@ -161,8 +198,17 @@ function markAllAsRead() {
   emit("mark-all-read");
 }
 
+function markAsRead(id) {
+  emit("mark-read", id);
+}
+
 function dismissNotification(id) {
   emit("dismiss", id);
+}
+
+function openHistory() {
+  closePanel();
+  emit("open-history");
 }
 
 function clearAllNotifications() {
@@ -569,6 +615,27 @@ onUnmounted(() => {
   text-shadow: 1px 1px 0 #000;
 }
 
+.notification-status {
+  display: inline-block;
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.4rem;
+  padding: 3px 8px;
+  margin-bottom: 6px;
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.4) 0%,
+    rgba(0, 0, 0, 0.6) 100%
+  );
+  border: 2px solid var(--status-color, #8b7355);
+  border-radius: 0;
+  color: var(--status-color, #8b7355);
+  text-shadow: 1px 1px 0 #000;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
 .notification-type-label {
   font-family: "Press Start 2P", monospace;
   font-size: 0.4rem;
@@ -593,6 +660,28 @@ onUnmounted(() => {
   color: #ffaa00;
 }
 
+.notification-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.notification-mark-read {
+  padding: 6px;
+  background: linear-gradient(180deg, #335533 0%, #113311 100%);
+  border: 2px solid #228822;
+  border-radius: 0;
+  color: #55ff55;
+  cursor: pointer;
+  transition: all 0.1s;
+}
+
+.notification-mark-read:hover {
+  background: linear-gradient(180deg, #448844 0%, #225522 100%);
+  transform: scale(1.1);
+}
+
 .notification-dismiss {
   padding: 6px;
   background: linear-gradient(180deg, #553333 0%, #331111 100%);
@@ -612,17 +701,43 @@ onUnmounted(() => {
   padding: 12px 16px;
   background: linear-gradient(180deg, #2d1f0f 0%, #1a1208 100%);
   border-top: 4px solid #5c3d1e;
+  display: flex;
+  gap: 10px;
 }
 
-.clear-all-btn {
-  width: 100%;
+.history-btn {
+  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 8px;
   padding: 12px;
   font-family: "Press Start 2P", monospace;
-  font-size: 0.5rem;
+  font-size: 0.45rem;
+  background: linear-gradient(180deg, #335588 0%, #224466 100%);
+  border: 3px solid #112244;
+  border-radius: 0;
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.1s;
+  text-shadow: 1px 1px 0 #001133;
+  box-shadow: inset 1px 1px 0 #5588bb, inset -1px -1px 0 #112244;
+}
+
+.history-btn:hover {
+  background: linear-gradient(180deg, #4488bb 0%, #336688 100%);
+  transform: translateY(-1px);
+}
+
+.clear-all-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.45rem;
   background: linear-gradient(180deg, #aa3333 0%, #772222 100%);
   border: 3px solid #551111;
   border-radius: 0;

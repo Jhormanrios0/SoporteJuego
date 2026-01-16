@@ -218,9 +218,22 @@
     <NotificationBell
       v-if="authUser && myPlayer"
       :notifications="helpNotifications"
-      @markRead="handleMarkNotificationRead"
-      @markAllRead="handleMarkAllNotificationsRead"
+      @mark-read="handleMarkNotificationRead"
+      @mark-all-read="handleMarkAllNotificationsRead"
+      @dismiss="handleDeleteNotification"
+      @clear-all="handleClearAllNotifications"
+      @open-history="openNotificationHistory"
+    />
+
+    <!-- Modal de historial de notificaciones -->
+    <NotificationHistory
+      :isOpen="isNotificationHistoryOpen"
+      :notifications="helpNotifications"
+      @close="closeNotificationHistory"
+      @mark-read="handleMarkNotificationRead"
+      @mark-all-read="handleMarkAllNotificationsRead"
       @delete="handleDeleteNotification"
+      @clear-all="handleClearAllNotifications"
     />
   </div>
 </template>
@@ -250,6 +263,7 @@ import {
   userLogout,
 } from "@/services/supabase";
 import NotificationBell from "@/components/NotificationBell.vue";
+import NotificationHistory from "@/components/NotificationHistory.vue";
 import { showDesktopNotification } from "@/services/desktopNotifications";
 import ProfileStatus from "@/components/ProfileStatus.vue";
 import StatusChangeNotification from "@/components/StatusChangeNotification.vue";
@@ -509,6 +523,7 @@ async function handleNewHelpRequest(payload) {
   // Obtener datos del sender
   let senderName = "Alguien";
   let senderImage = "";
+  let senderStatus = null;
 
   if (newRecord.sender_player_id) {
     try {
@@ -519,6 +534,16 @@ async function handleNewHelpRequest(payload) {
           `${player.first_name || ""} ${player.last_name || ""}`.trim() ||
           "Jugador";
         senderImage = player.image_url || "";
+
+        // Obtener status del perfil
+        if (player.user_id) {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("status")
+            .eq("id", player.user_id)
+            .maybeSingle();
+          senderStatus = profile?.status || null;
+        }
       }
     } catch (e) {
       console.error("[Profile] Error obteniendo datos del sender:", e);
@@ -531,6 +556,7 @@ async function handleNewHelpRequest(payload) {
     message: newRecord.message,
     senderName,
     senderImage,
+    senderStatus,
     read: false,
     createdAt: newRecord.created_at,
   };
@@ -576,6 +602,24 @@ async function handleDeleteNotification(notificationId) {
   } catch (e) {
     console.error("[Profile] Error eliminando notificación:", e);
   }
+}
+
+function handleClearAllNotifications() {
+  const ids = helpNotifications.value.map((n) => n.id);
+  Promise.all(ids.map((id) => deleteNotification(id))).then(() => {
+    helpNotifications.value = [];
+  });
+}
+
+// Estado para historial de notificaciones
+const isNotificationHistoryOpen = ref(false);
+
+function openNotificationHistory() {
+  isNotificationHistoryOpen.value = true;
+}
+
+function closeNotificationHistory() {
+  isNotificationHistoryOpen.value = false;
 }
 
 function goHome() {

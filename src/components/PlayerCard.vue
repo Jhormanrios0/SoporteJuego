@@ -36,6 +36,21 @@
         <span v-if="player.lives === 0" class="game-over-badge">GAME OVER</span>
       </div>
 
+      <!-- Estado del jugador -->
+      <div
+        v-if="player.status"
+        class="player-status"
+        :style="{
+          '--status-color': player.status.color || '#00ffc2',
+        }"
+        :title="player.status.status || 'Sin estado'"
+      >
+        <span class="status-dot"></span>
+        <span class="status-text">{{
+          player.status.status || "Sin estado"
+        }}</span>
+      </div>
+
       <HeartsBar :lives="player.lives" :max-lives="player.max_lives || 12" />
 
       <div v-if="showUpdatedTime" class="updated-time">
@@ -308,6 +323,123 @@ function formatDate(dateString) {
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 100%;
+}
+
+.player-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.55rem;
+  padding: 8px 14px;
+  background: linear-gradient(
+    180deg,
+    rgba(20, 20, 30, 0.95) 0%,
+    rgba(10, 10, 20, 0.98) 100%
+  );
+  border: none;
+  border-radius: 0;
+  color: var(--status-color, #00ffc2);
+  text-shadow: 0 0 8px var(--status-color, #00ffc2), 1px 1px 0 rgba(0, 0, 0, 1);
+  max-width: 100%;
+  box-shadow: inset 0 0 0 3px var(--status-color, #00ffc2),
+    inset 0 0 0 5px rgba(0, 0, 0, 0.8),
+    0 0 20px color-mix(in srgb, var(--status-color, #00ffc2) 40%, transparent),
+    0 4px 8px rgba(0, 0, 0, 0.5);
+  image-rendering: pixelated;
+  position: relative;
+  margin-top: 4px;
+  margin-bottom: 6px;
+  overflow: hidden;
+}
+
+/* Efecto de brillo animado */
+.player-status::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.1),
+    transparent
+  );
+  animation: statusShine 3s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes statusShine {
+  0%,
+  100% {
+    left: -100%;
+  }
+  50% {
+    left: 150%;
+  }
+}
+
+/* Borde decorativo exterior */
+.player-status::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  background: linear-gradient(
+    45deg,
+    var(--status-color, #00ffc2) 0%,
+    transparent 40%,
+    transparent 60%,
+    var(--status-color, #00ffc2) 100%
+  );
+  opacity: 0.3;
+  z-index: -1;
+  pointer-events: none;
+}
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  background: var(--status-color, #00ffc2);
+  border-radius: 0;
+  flex-shrink: 0;
+  position: relative;
+  box-shadow: 0 0 8px var(--status-color, #00ffc2),
+    0 0 16px var(--status-color, #00ffc2);
+  animation: statusPulse 1s ease-in-out infinite;
+}
+
+.status-dot::after {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+@keyframes statusPulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+    box-shadow: 0 0 8px var(--status-color, #00ffc2),
+      0 0 16px var(--status-color, #00ffc2);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(0.85);
+    box-shadow: 0 0 4px var(--status-color, #00ffc2),
+      0 0 8px var(--status-color, #00ffc2);
+  }
+}
+
+.status-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
+  line-height: 1.3;
+  letter-spacing: 0.5px;
 }
 
 .game-over-badge {

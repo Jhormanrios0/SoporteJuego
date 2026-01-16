@@ -119,6 +119,31 @@ export async function getPlayers() {
     console.error("Error al obtener jugadores:", error);
     return [];
   }
+
+  // Obtener los status de los perfiles asociados
+  if (data && data.length > 0) {
+    const userIds = data.filter((p) => p.user_id).map((p) => p.user_id);
+
+    if (userIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, status")
+        .in("id", userIds);
+
+      const statusMap = {};
+      (profiles || []).forEach((p) => {
+        if (p.status) statusMap[p.id] = p.status;
+      });
+
+      // Agregar status a cada jugador
+      data.forEach((player) => {
+        if (player.user_id && statusMap[player.user_id]) {
+          player.status = statusMap[player.user_id];
+        }
+      });
+    }
+  }
+
   return data || [];
 }
 
@@ -259,7 +284,7 @@ export async function getMyNotifications(opts = {}) {
       `
       *,
       sender:players!help_requests_sender_player_id_fkey(
-        id, nickname, first_name, last_name, image_url
+        id, nickname, first_name, last_name, image_url, user_id
       )
     `
     )
@@ -279,6 +304,33 @@ export async function getMyNotifications(opts = {}) {
   const { data, error } = await query;
 
   if (error) throw error;
+
+  // Obtener los status de los perfiles de los senders
+  if (data && data.length > 0) {
+    const senderUserIds = data
+      .filter((n) => n.sender?.user_id)
+      .map((n) => n.sender.user_id);
+
+    if (senderUserIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, status")
+        .in("id", senderUserIds);
+
+      const statusMap = {};
+      (profiles || []).forEach((p) => {
+        if (p.status) statusMap[p.id] = p.status;
+      });
+
+      // Agregar status a cada notificación
+      data.forEach((n) => {
+        if (n.sender?.user_id && statusMap[n.sender.user_id]) {
+          n.sender.status = statusMap[n.sender.user_id];
+        }
+      });
+    }
+  }
+
   return data || [];
 }
 
