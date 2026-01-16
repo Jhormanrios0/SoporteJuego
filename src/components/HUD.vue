@@ -17,9 +17,11 @@
       <!-- Slot 2: Historial -->
       <button
         class="hud-slot hud-slot-active"
+        :class="{ locked: props.readonly }"
         @click="openHistory"
         data-tooltip="Historial"
         aria-label="Abrir historial"
+        :aria-disabled="props.readonly"
       >
         <div class="hud-slot-inner">
           <img
@@ -27,6 +29,10 @@
             alt="Historial"
             class="hud-slot-icon"
           />
+          <div v-if="props.readonly" class="locked-overlay">
+            <div class="lock-icon">🔒</div>
+            <div class="locked-text">BLOQUEADO</div>
+          </div>
         </div>
       </button>
 
@@ -53,9 +59,11 @@
       <!-- Slot 13 (último): Botón de Ayuda -->
       <button
         class="hud-slot hud-slot-active hud-slot-help"
+        :class="{ locked: props.readonly }"
         @click="openHelpModal"
         data-tooltip="¡Pedir ayuda!"
         aria-label="Pedir ayuda"
+        :aria-disabled="props.readonly"
       >
         <div class="hud-slot-inner help-slot">
           <img
@@ -63,6 +71,10 @@
             alt="Pedir ayuda"
             class="hud-slot-icon help-icon"
           />
+          <div v-if="props.readonly" class="locked-overlay">
+            <div class="lock-icon">🔒</div>
+            <div class="locked-text">BLOQUEADO</div>
+          </div>
         </div>
       </button>
     </div>
@@ -82,7 +94,18 @@
 import { ref } from "vue";
 import BookInfo from "./BookInfo.vue";
 
-const emit = defineEmits(["open-history", "open-help"]);
+const props = defineProps({
+  readonly: {
+    type: Boolean,
+    default: false,
+  },
+  playerId: {
+    type: String,
+    default: null,
+  },
+});
+
+const emit = defineEmits(["open-history", "open-help", "locked-click"]);
 
 const isBookOpen = ref(false);
 
@@ -95,10 +118,18 @@ const closeBookModal = () => {
 };
 
 const openHistory = () => {
+  if (props.readonly) {
+    emit("locked-click", { type: "history" });
+    return;
+  }
   emit("open-history");
 };
 
 const openHelpModal = () => {
+  if (props.readonly) {
+    emit("locked-click", { type: "help" });
+    return;
+  }
   emit("open-help");
 };
 </script>
@@ -347,6 +378,41 @@ const openHelpModal = () => {
   image-rendering: pixelated;
   z-index: 1;
   filter: drop-shadow(3px 3px 0 rgba(0, 0, 0, 0.35));
+}
+
+/* Locked overlay for readonly public profiles (8-bit / pixel style) */
+.hud-slot.locked {
+  cursor: not-allowed;
+  opacity: 0.9;
+}
+.hud-slot.locked .hud-slot-inner {
+  filter: grayscale(0.6) contrast(0.8) brightness(0.6);
+}
+.hud-slot .locked-overlay {
+  position: absolute;
+  inset: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.6);
+  border: 3px solid #222;
+  box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.02), 4px 4px 0 #000;
+  image-rendering: pixelated;
+  z-index: 5;
+  pointer-events: none;
+}
+.lock-icon {
+  font-size: 20px;
+  line-height: 1;
+  filter: drop-shadow(2px 2px 0 #000);
+}
+.locked-text {
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.55rem;
+  color: #ffda79;
+  text-shadow: 1px 1px 0 #000;
 }
 
 @media (max-width: 520px) {

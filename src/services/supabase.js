@@ -7,7 +7,13 @@ if (!supabaseUrl || !supabaseAnonKey) {
   console.error("⚠️ Falta configuración de Supabase en .env");
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+  },
+});
 
 // ==================== AUTH USUARIOS (GOOGLE) ====================
 
@@ -34,7 +40,15 @@ export async function userLoginWithGoogle() {
 export async function userLogout() {
   const { error } = await supabase.auth.signOut();
   if (error) throw error;
+  try {
+    localStorage.removeItem(SESSION_EXPIRY_KEY);
+  } catch (e) {
+    // noop
+  }
 }
+
+// Internal key used to persist custom expiry timestamp (ms since epoch)
+const SESSION_EXPIRY_KEY = "session_expires_at";
 
 /**
  * Obtener el perfil del usuario autenticado (tabla public.profiles)
@@ -429,6 +443,11 @@ export async function adminLogin(email, password) {
 export async function adminLogout() {
   const { error } = await supabase.auth.signOut();
   if (error) throw error;
+  try {
+    localStorage.removeItem(SESSION_EXPIRY_KEY);
+  } catch (e) {
+    // noop
+  }
 }
 
 /**
@@ -437,6 +456,22 @@ export async function adminLogout() {
 export async function getSession() {
   const { data, error } = await supabase.auth.getSession();
   if (error) throw error;
+  // If we have a session, check optional custom expiry (ms)
+  try {
+    const expiry = localStorage.getItem(SESSION_EXPIRY_KEY);
+    if (data?.session && expiry) {
+      const expiryMs = Number(expiry) || 0;
+      if (Date.now() > expiryMs) {
+        // Session expired per custom policy: sign out and clear
+        await supabase.auth.signOut();
+        localStorage.removeItem(SESSION_EXPIRY_KEY);
+        return null;
+      }
+    }
+  } catch (e) {
+    // ignore storage errors
+  }
+
   return data.session;
 }
 

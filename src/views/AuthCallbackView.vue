@@ -34,6 +34,17 @@ onMounted(async () => {
       return;
     }
 
+    // Establecer expiración personalizada de sesión: 10 horas desde ahora
+    try {
+      const TEN_HOURS_MS = 10 * 60 * 60 * 1000;
+      localStorage.setItem(
+        "session_expires_at",
+        String(Date.now() + TEN_HOURS_MS)
+      );
+    } catch (e) {
+      // noop
+    }
+
     const player = await getMyPlayer();
 
     // Si el usuario no tiene jugador asociado, lo tratamos como “registro pendiente”

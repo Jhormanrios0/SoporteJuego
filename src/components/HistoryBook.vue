@@ -14,7 +14,7 @@
           </div>
 
           <!-- Contenido de la página -->
-          <div class="page-content">
+          <div v-if="!props.locked" class="page-content">
             <!-- Botón cerrar dentro de la página -->
             <button
               class="close-book-btn"
@@ -111,6 +111,15 @@
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+
+          <div v-else class="page-content locked-page">
+            <div class="locked-visual">
+              <div class="locked-pixels" />
+              <div class="locked-title">HISTORIAL BLOQUEADO</div>
+              <div class="locked-sub">Solo disponible en tu propio perfil</div>
+              <div class="locked-padlock">🔒</div>
             </div>
           </div>
 
@@ -221,6 +230,10 @@ const props = defineProps({
   playerNickname: {
     type: String,
     default: "",
+  },
+  locked: {
+    type: Boolean,
+    default: false,
   },
 });
 
@@ -602,6 +615,50 @@ function hasAdminNote(ev) {
   line-height: 1.8;
   overflow-y: auto;
   padding-right: 0.8rem;
+}
+
+/* Locked page styles */
+.locked-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2.4rem;
+}
+.locked-visual {
+  text-align: center;
+  color: #f5e4c8;
+  font-family: "Press Start 2P", monospace;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+}
+.locked-padlock {
+  font-size: 32px;
+  filter: drop-shadow(3px 3px 0 #000);
+}
+.locked-title {
+  font-size: 0.7rem;
+  color: #e8b68c;
+}
+.locked-sub {
+  font-size: 0.45rem;
+  color: #d4a373;
+}
+.locked-pixels {
+  width: 120px;
+  height: 24px;
+  background-image: linear-gradient(
+    90deg,
+    #000 0 12.5%,
+    transparent 12.5% 25%,
+    #000 25% 37.5%,
+    transparent 37.5% 50%
+  );
+  image-rendering: pixelated;
+  opacity: 0.25;
+  transform: scaleY(2);
 }
 
 .tab-content::-webkit-scrollbar {

@@ -3,162 +3,185 @@
     <Transition name="modal-fade">
       <div v-if="isOpen" class="help-modal-overlay" @click="closeModal">
         <div class="help-modal" @click.stop>
-          <!-- Header -->
-          <div class="help-header">
-            <h2 class="help-title">
-              <img src="/icons/abcde.gif" alt="" class="help-title-icon" />
-              ¡Pedir Ayuda!
-            </h2>
-            <button class="help-close" @click="closeModal" aria-label="Cerrar">
-              <X :size="20" />
-            </button>
-          </div>
-
-          <!-- Selector de tipo -->
-          <div class="help-type-selector">
-            <button
-              class="type-btn"
-              :class="{ active: helpType === 'specific' }"
-              @click="helpType = 'specific'"
-            >
-              <UserCircle :size="18" />
-              Jugador específico
-            </button>
-            <button
-              class="type-btn"
-              :class="{ active: helpType === 'general' }"
-              @click="
-                helpType = 'general';
-                selectedPlayer = null;
-              "
-            >
-              <Users :size="18" />
-              Grupo general
-            </button>
-          </div>
-
-          <!-- Área de mensaje -->
-          <div class="help-message-area">
-            <div class="textarea-wrapper">
-              <textarea
-                ref="textareaRef"
-                v-model="messageText"
-                class="help-textarea"
-                placeholder="Escribe tu mensaje de ayuda..."
-                rows="4"
-                @input="handleInput"
-                @keydown="handleKeydown"
-              ></textarea>
-
-              <!-- Dropdown de menciones -->
-              <Transition name="mention-slide">
-                <div
-                  v-if="showMentionDropdown && filteredPlayers.length > 0"
-                  class="mention-dropdown"
-                  :style="mentionDropdownStyle"
-                >
-                  <div class="mention-header">
-                    <AtSign :size="14" />
-                    <span>Mencionar jugador</span>
-                  </div>
-                  <div class="mention-list">
-                    <button
-                      v-for="(player, index) in filteredPlayers"
-                      :key="player.id"
-                      class="mention-item"
-                      :class="{ highlighted: index === highlightedIndex }"
-                      @click="selectMention(player)"
-                      @mouseenter="highlightedIndex = index"
-                    >
-                      <span class="mention-avatar">
-                        <img
-                          v-if="player.image_url"
-                          :src="player.image_url"
-                          :alt="player.nickname"
-                        />
-                        <span v-else class="mention-avatar-fallback">
-                          {{ getInitials(player) }}
-                        </span>
-                      </span>
-                      <span class="mention-info">
-                        <span class="mention-name">{{
-                          getPlayerName(player)
-                        }}</span>
-                        <span class="mention-nickname"
-                          >@{{ player.nickname }}</span
-                        >
-                      </span>
-                      <span
-                        class="mention-status"
-                        :class="getStatusClass(player)"
-                        :style="getStatusStyle(player)"
-                      >
-                        {{ getPlayerStatus(player) }}
-                      </span>
-                    </button>
-                  </div>
-                </div>
-              </Transition>
+          <template v-if="!props.locked">
+            <!-- Header -->
+            <div class="help-header">
+              <h2 class="help-title">
+                <img src="/icons/abcde.gif" alt="" class="help-title-icon" />
+                ¡Pedir Ayuda!
+              </h2>
+              <button
+                class="help-close"
+                @click="closeModal"
+                aria-label="Cerrar"
+              >
+                <X :size="20" />
+              </button>
             </div>
 
-            <!-- Jugador seleccionado (si es específico) -->
-            <div
-              v-if="helpType === 'specific' && selectedPlayer"
-              class="selected-player"
-            >
-              <span class="selected-label">Enviando a:</span>
-              <div class="selected-tag">
-                <span class="selected-avatar">
-                  <img
-                    v-if="selectedPlayer.image_url"
-                    :src="selectedPlayer.image_url"
-                    :alt="selectedPlayer.nickname"
-                  />
-                  <span v-else>{{ getInitials(selectedPlayer) }}</span>
-                </span>
-                <span>{{ getPlayerName(selectedPlayer) }}</span>
-                <button class="remove-selected" @click="selectedPlayer = null">
-                  <X :size="14" />
-                </button>
+            <!-- Selector de tipo -->
+            <div class="help-type-selector">
+              <button
+                class="type-btn"
+                :class="{ active: helpType === 'specific' }"
+                @click="helpType = 'specific'"
+              >
+                <UserCircle :size="18" />
+                Jugador específico
+              </button>
+              <button
+                class="type-btn"
+                :class="{ active: helpType === 'general' }"
+                @click="
+                  helpType = 'general';
+                  selectedPlayer = null;
+                "
+              >
+                <Users :size="18" />
+                Grupo general
+              </button>
+            </div>
+
+            <!-- Área de mensaje -->
+            <div class="help-message-area">
+              <div class="textarea-wrapper">
+                <textarea
+                  ref="textareaRef"
+                  v-model="messageText"
+                  class="help-textarea"
+                  placeholder="Escribe tu mensaje de ayuda..."
+                  rows="4"
+                  @input="handleInput"
+                  @keydown="handleKeydown"
+                ></textarea>
+
+                <!-- Dropdown de menciones -->
+                <Transition name="mention-slide">
+                  <div
+                    v-if="showMentionDropdown && filteredPlayers.length > 0"
+                    class="mention-dropdown"
+                    :style="mentionDropdownStyle"
+                  >
+                    <div class="mention-header">
+                      <AtSign :size="14" />
+                      <span>Mencionar jugador</span>
+                    </div>
+                    <div class="mention-list">
+                      <button
+                        v-for="(player, index) in filteredPlayers"
+                        :key="player.id"
+                        class="mention-item"
+                        :class="{ highlighted: index === highlightedIndex }"
+                        @click="selectMention(player)"
+                        @mouseenter="highlightedIndex = index"
+                      >
+                        <span class="mention-avatar">
+                          <img
+                            v-if="player.image_url"
+                            :src="player.image_url"
+                            :alt="player.nickname"
+                          />
+                          <span v-else class="mention-avatar-fallback">
+                            {{ getInitials(player) }}
+                          </span>
+                        </span>
+                        <span class="mention-info">
+                          <span class="mention-name">{{
+                            getPlayerName(player)
+                          }}</span>
+                          <span class="mention-nickname"
+                            >@{{ player.nickname }}</span
+                          >
+                        </span>
+                        <span
+                          class="mention-status"
+                          :class="getStatusClass(player)"
+                          :style="getStatusStyle(player)"
+                        >
+                          {{ getPlayerStatus(player) }}
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+                </Transition>
+              </div>
+
+              <!-- Jugador seleccionado (si es específico) -->
+              <div
+                v-if="helpType === 'specific' && selectedPlayer"
+                class="selected-player"
+              >
+                <span class="selected-label">Enviando a:</span>
+                <div class="selected-tag">
+                  <span class="selected-avatar">
+                    <img
+                      v-if="selectedPlayer.image_url"
+                      :src="selectedPlayer.image_url"
+                      :alt="selectedPlayer.nickname"
+                    />
+                    <span v-else>{{ getInitials(selectedPlayer) }}</span>
+                  </span>
+                  <span>{{ getPlayerName(selectedPlayer) }}</span>
+                  <button
+                    class="remove-selected"
+                    @click="selectedPlayer = null"
+                  >
+                    <X :size="14" />
+                  </button>
+                </div>
+              </div>
+
+              <div v-if="helpType === 'general'" class="general-info">
+                <Info :size="16" />
+                <span>Este mensaje será visible para todos los jugadores</span>
               </div>
             </div>
 
-            <div v-if="helpType === 'general'" class="general-info">
-              <Info :size="16" />
-              <span>Este mensaje será visible para todos los jugadores</span>
+            <!-- Footer con botón enviar -->
+            <div class="help-footer">
+              <span
+                class="char-count"
+                :class="{ warning: messageText.length > 450 }"
+              >
+                {{ messageText.length }}/500
+              </span>
+              <button
+                class="send-btn"
+                :disabled="!canSend || isSending"
+                @click="sendHelpRequest"
+              >
+                <Send :size="16" />
+                {{ isSending ? "Enviando..." : "Enviar solicitud" }}
+              </button>
             </div>
-          </div>
 
-          <!-- Footer con botón enviar -->
-          <div class="help-footer">
-            <span
-              class="char-count"
-              :class="{ warning: messageText.length > 450 }"
-            >
-              {{ messageText.length }}/500
-            </span>
-            <button
-              class="send-btn"
-              :disabled="!canSend || isSending"
-              @click="sendHelpRequest"
-            >
-              <Send :size="16" />
-              {{ isSending ? "Enviando..." : "Enviar solicitud" }}
-            </button>
-          </div>
+            <!-- Mensaje de éxito/error -->
+            <Transition name="fade">
+              <div
+                v-if="feedbackMessage"
+                class="feedback-message"
+                :class="feedbackType"
+              >
+                <CheckCircle v-if="feedbackType === 'success'" :size="16" />
+                <AlertCircle v-else :size="16" />
+                {{ feedbackMessage }}
+              </div>
+            </Transition>
+          </template>
 
-          <!-- Mensaje de éxito/error -->
-          <Transition name="fade">
-            <div
-              v-if="feedbackMessage"
-              class="feedback-message"
-              :class="feedbackType"
-            >
-              <CheckCircle v-if="feedbackType === 'success'" :size="16" />
-              <AlertCircle v-else :size="16" />
-              {{ feedbackMessage }}
+          <template v-else>
+            <div class="help-locked">
+              <div class="help-locked-pad">🔒</div>
+              <div class="help-locked-title">PEDIR AYUDA BLOQUEADO</div>
+              <div class="help-locked-sub">
+                Solo disponible en tu propio perfil
+              </div>
+              <div class="help-locked-note">
+                Intenta desde tu perfil para enviar solicitudes.
+              </div>
             </div>
-          </Transition>
+          </template>
+          <!-- Header, body and footer handled above (or locked visual) -->
         </div>
       </div>
     </Transition>
@@ -190,6 +213,10 @@ const props = defineProps({
   currentUserId: {
     type: String,
     default: null,
+  },
+  locked: {
+    type: Boolean,
+    default: false,
   },
 });
 
@@ -560,6 +587,35 @@ watch(
   outline: none;
   border-color: rgba(255, 193, 7, 0.6);
   box-shadow: 0 0 20px rgba(255, 193, 7, 0.2);
+}
+
+/* Locked visual for help modal when blocked */
+.help-locked {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 36px 20px;
+  gap: 12px;
+  color: #ffd28a;
+  font-family: "Press Start 2P", monospace;
+}
+.help-locked-pad {
+  font-size: 40px;
+  filter: drop-shadow(3px 3px 0 #000);
+}
+.help-locked-title {
+  font-size: 0.85rem;
+  color: #ffdd99;
+}
+.help-locked-sub {
+  font-size: 0.5rem;
+  color: #d4a373;
+}
+.help-locked-note {
+  font-size: 0.45rem;
+  color: #b88a5a;
+  opacity: 0.9;
 }
 
 /* Mention Dropdown - Sobrepuesto sobre todo */

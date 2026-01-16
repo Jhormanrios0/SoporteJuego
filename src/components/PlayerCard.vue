@@ -4,6 +4,8 @@
       'player-card',
       { 'low-lives': player.lives <= 6, 'zero-lives': player.lives === 0 },
     ]"
+    @click="goToProfile"
+    style="cursor: pointer"
   >
     <!-- Imagen del jugador a la izquierda -->
     <div
@@ -52,6 +54,7 @@ import { computed } from "vue";
 import HeartsBar from "./HeartsBar.vue";
 import CreeperIcon from "./CreeperIcon.vue";
 import ProfileStatus from "./ProfileStatus.vue";
+import { useRouter } from "vue-router";
 
 const props = defineProps({
   player: {
@@ -70,6 +73,14 @@ const displayName = computed(() => {
   const full = `${first} ${last}`.trim();
   return full || props.player?.nickname || "Jugador";
 });
+
+const router = useRouter();
+
+function goToProfile() {
+  if (props.player?.id) {
+    router.push({ name: "player-profile", params: { id: props.player.id } });
+  }
+}
 
 function formatDate(dateString) {
   if (!dateString) return "";
@@ -480,7 +491,8 @@ function formatDate(dateString) {
 }
 
 @keyframes statusPulse {
-  0%, 100% {
+  0%,
+  100% {
     box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.4), 0 0 12px currentColor;
   }
   50% {
@@ -489,7 +501,8 @@ function formatDate(dateString) {
 }
 
 @keyframes statusBlink {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
   }
   50% {
