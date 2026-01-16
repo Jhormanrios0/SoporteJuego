@@ -36,21 +36,6 @@
         <span v-if="player.lives === 0" class="game-over-badge">GAME OVER</span>
       </div>
 
-      <!-- Estado del jugador -->
-      <div
-        v-if="player.status"
-        class="player-status"
-        :style="{
-          '--status-color': player.status.color || '#00ffc2',
-        }"
-        :title="player.status.status || 'Sin estado'"
-      >
-        <span class="status-dot"></span>
-        <span class="status-text">{{
-          player.status.status || "Sin estado"
-        }}</span>
-      </div>
-
       <HeartsBar :lives="player.lives" :max-lives="player.max_lives || 12" />
 
       <ProfileStatus v-if="player.user_id" :userId="player.user_id" />
