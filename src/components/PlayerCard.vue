@@ -38,6 +38,8 @@
 
       <HeartsBar :lives="player.lives" :max-lives="player.max_lives || 12" />
 
+      <ProfileStatus v-if="player.user_id" :userId="player.user_id" />
+
       <div v-if="showUpdatedTime" class="updated-time">
         Actualizado: {{ formatDate(player.updated_at) }}
       </div>
@@ -49,6 +51,7 @@
 import { computed } from "vue";
 import HeartsBar from "./HeartsBar.vue";
 import CreeperIcon from "./CreeperIcon.vue";
+import ProfileStatus from "./ProfileStatus.vue";
 
 const props = defineProps({
   player: {
@@ -335,6 +338,45 @@ function formatDate(dateString) {
   60% {
     opacity: 0.7;
     transform: scale(0.95);
+  }
+}
+
+.player-status {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 6px;
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.5rem;
+  border: 2px solid;
+  border-radius: 6px;
+  padding: 6px 10px;
+  margin-top: 4px;
+  box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.4), 0 0 12px currentColor;
+  animation: statusPulse 2s ease-in-out infinite;
+}
+
+.status-indicator {
+  font-size: 0.5rem;
+  animation: statusBlink 1.5s ease-in-out infinite;
+  filter: drop-shadow(0 0 4px currentColor);
+}
+
+@keyframes statusPulse {
+  0%, 100% {
+    box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.4), 0 0 12px currentColor;
+  }
+  50% {
+    box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.4), 0 0 20px currentColor;
+  }
+}
+
+@keyframes statusBlink {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
   }
 }
 
