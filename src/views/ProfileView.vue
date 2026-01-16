@@ -160,7 +160,7 @@
 
           <!-- HUD de Información y otros elementos -->
           <div v-if="!profileNeedsRegister" class="profile-hud-section">
-            <HUD @open-history="openHistoryModal" />
+            <HUD @open-history="openHistoryModal" @open-help="openHelpModal" />
           </div>
 
           <!-- Libro de información (DEPRECADO - Se abre por el HUD) -->
@@ -204,6 +204,24 @@
 
     <!-- Notificaciones de cambio de estado -->
     <StatusChangeNotification :notifications="statusNotifications" />
+
+    <!-- Modal de Solicitud de Ayuda -->
+    <HelpRequestModal
+      :isOpen="isHelpOpen"
+      :players="allPlayers"
+      :currentUserId="authUser?.id || ''"
+      @close="closeHelpModal"
+      @send="handleSendHelp"
+    />
+
+    <!-- Notificación de ayuda (campanita/manzana) -->
+    <NotificationBell
+      v-if="authUser && myPlayer"
+      :notifications="helpNotifications"
+      @markRead="handleMarkNotificationRead"
+      @markAllRead="handleMarkAllNotificationsRead"
+      @delete="handleDeleteNotification"
+    />
   </div>
 </template>
 
@@ -214,15 +232,25 @@ import { ArrowLeft, Pencil, User } from "lucide-vue-next";
 import BookInfo from "@/components/BookInfo.vue";
 import HUD from "@/components/HUD.vue";
 import HistoryBook from "@/components/HistoryBook.vue";
+import HelpRequestModal from "@/components/HelpRequestModal.vue";
 import {
   getMyPlayer,
+  getPlayerById,
   getSession,
   getLifeEventsForPlayer,
   replaceMyPlayerImage,
   subscribeToStatusChanges,
+  subscribeToHelpRequests,
+  getMyNotifications,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
+  deleteNotification,
+  sendHelpRequest,
   supabase,
   userLogout,
 } from "@/services/supabase";
+import NotificationBell from "@/components/NotificationBell.vue";
+import { showDesktopNotification } from "@/services/desktopNotifications";
 import ProfileStatus from "@/components/ProfileStatus.vue";
 import StatusChangeNotification from "@/components/StatusChangeNotification.vue";
 
@@ -255,6 +283,15 @@ const lifeHistoryLoading = ref(false);
 const lifeHistoryError = ref("");
 const lifeEvents = ref([]);
 const isHistoryOpen = ref(false);
+
+// Modal de solicitud de ayuda
+const isHelpOpen = ref(false);
+const allPlayers = ref([]);
+const helpSending = ref(false);
+
+// Notificaciones de ayuda (help requests)
+const helpNotifications = ref([]);
+let helpSubscription = null;
 
 const profileNeedsRegister = computed(
   () => !!authUser.value && !myPlayer.value
@@ -367,6 +404,10 @@ function onKeydown(e) {
   if (e.key === "Escape" && isHistoryOpen.value) {
     closeHistoryModal();
   }
+
+  if (e.key === "Escape" && isHelpOpen.value) {
+    closeHelpModal();
+  }
 }
 
 function openHistoryModal() {
@@ -375,6 +416,166 @@ function openHistoryModal() {
 
 function closeHistoryModal() {
   isHistoryOpen.value = false;
+}
+
+// Funciones para el modal de ayuda
+async function openHelpModal() {
+  // Cargar jugadores para las menciones (incluyendo status y vidas)
+  try {
+    const { data: playersData, error: playersError } = await supabase
+      .from("players")
+      .select("id, nickname, first_name, last_name, image_url, user_id, lives")
+      .order("nickname", { ascending: true });
+
+    if (playersError) throw playersError;
+
+    // Obtener status de los perfiles
+    const { data: profilesData } = await supabase
+      .from("profiles")
+      .select("id, status");
+
+    // Mapear status a players por user_id
+    const statusMap = {};
+    (profilesData || []).forEach((p) => {
+      if (p.status) statusMap[p.id] = p.status;
+    });
+
+    // Combinar datos
+    allPlayers.value = (playersData || []).map((player) => ({
+      ...player,
+      status: statusMap[player.user_id] || null,
+    }));
+  } catch (e) {
+    console.error("[Profile] Error cargando jugadores:", e);
+    allPlayers.value = [];
+  }
+
+  isHelpOpen.value = true;
+}
+
+function closeHelpModal() {
+  isHelpOpen.value = false;
+}
+
+async function handleSendHelp(payload) {
+  if (helpSending.value) return;
+
+  helpSending.value = true;
+  try {
+    await sendHelpRequest({
+      message: payload.message,
+      type: payload.type,
+      targetPlayerId: payload.targetPlayerId,
+    });
+
+    console.log("[Profile] Solicitud de ayuda enviada:", payload);
+    closeHelpModal();
+  } catch (e) {
+    console.error("[Profile] Error enviando solicitud de ayuda:", e);
+    alert("No se pudo enviar la solicitud. Intenta de nuevo.");
+  } finally {
+    helpSending.value = false;
+  }
+}
+
+// ─── NOTIFICACIONES DE AYUDA ─────────────────────────────────────────────────
+async function loadHelpNotifications() {
+  if (!authUser.value) return;
+  try {
+    const data = await getMyNotifications();
+    helpNotifications.value = data || [];
+  } catch (e) {
+    console.error("[Profile] Error cargando notificaciones:", e);
+    helpNotifications.value = [];
+  }
+}
+
+async function handleNewHelpRequest(payload) {
+  const newRecord = payload?.new;
+  if (!newRecord) return;
+
+  // No mostrar mis propias solicitudes
+  if (authUser.value && newRecord.sender_id === authUser.value.id) return;
+
+  // Verificar si el mensaje es para mí
+  const isForMe =
+    newRecord.type === "general" ||
+    (newRecord.type === "specific" &&
+      myPlayer.value &&
+      newRecord.target_player_id === myPlayer.value.id);
+
+  if (!isForMe) return;
+
+  // Obtener datos del sender
+  let senderName = "Alguien";
+  let senderImage = "";
+
+  if (newRecord.sender_player_id) {
+    try {
+      const player = await getPlayerById(newRecord.sender_player_id);
+      if (player) {
+        senderName =
+          player.nickname ||
+          `${player.first_name || ""} ${player.last_name || ""}`.trim() ||
+          "Jugador";
+        senderImage = player.image_url || "";
+      }
+    } catch (e) {
+      console.error("[Profile] Error obteniendo datos del sender:", e);
+    }
+  }
+
+  const notification = {
+    id: newRecord.id,
+    type: newRecord.type,
+    message: newRecord.message,
+    senderName,
+    senderImage,
+    read: false,
+    createdAt: newRecord.created_at,
+  };
+
+  // Agregar al inicio de la lista
+  helpNotifications.value.unshift(notification);
+
+  // Desktop notification si está en segundo plano
+  if (document.hidden) {
+    showDesktopNotification({
+      title: newRecord.type === "general" ? "Ayuda General" : "Te mencionaron",
+      body: `${senderName}: ${newRecord.message}`,
+      tag: `help-${newRecord.id}`,
+    });
+  }
+}
+
+async function handleMarkNotificationRead(notificationId) {
+  try {
+    await markNotificationAsRead(notificationId);
+    const notif = helpNotifications.value.find((n) => n.id === notificationId);
+    if (notif) notif.read = true;
+  } catch (e) {
+    console.error("[Profile] Error marcando notificación como leída:", e);
+  }
+}
+
+async function handleMarkAllNotificationsRead() {
+  try {
+    await markAllNotificationsAsRead();
+    helpNotifications.value.forEach((n) => (n.read = true));
+  } catch (e) {
+    console.error("[Profile] Error marcando todas como leídas:", e);
+  }
+}
+
+async function handleDeleteNotification(notificationId) {
+  try {
+    await deleteNotification(notificationId);
+    helpNotifications.value = helpNotifications.value.filter(
+      (n) => n.id !== notificationId
+    );
+  } catch (e) {
+    console.error("[Profile] Error eliminando notificación:", e);
+  }
 }
 
 function goHome() {
@@ -515,7 +716,9 @@ onMounted(async () => {
 
   authSubscription = supabase.auth.onAuthStateChange(
     async (_event, session) => {
+      const wasLoggedIn = !!authUser.value;
       authUser.value = session?.user || null;
+
       if (authUser.value) {
         try {
           myPlayer.value = await getMyPlayer();
@@ -525,12 +728,28 @@ onMounted(async () => {
 
         if (myPlayer.value?.id) {
           await refreshLifeHistory();
+
+          // Cargar notificaciones y suscribirse si acaba de loguearse
+          if (!wasLoggedIn) {
+            await loadHelpNotifications();
+            if (!helpSubscription) {
+              helpSubscription = subscribeToHelpRequests((payload) => {
+                handleNewHelpRequest(payload);
+              });
+            }
+          }
         } else {
           lifeEvents.value = [];
         }
       } else {
         myPlayer.value = null;
         lifeEvents.value = [];
+        helpNotifications.value = [];
+        // Desuscribirse al hacer logout
+        if (helpSubscription) {
+          helpSubscription.unsubscribe();
+          helpSubscription = null;
+        }
       }
     }
   ).data.subscription;
@@ -539,6 +758,14 @@ onMounted(async () => {
   statusSubscription = subscribeToStatusChanges((payload) => {
     handleStatusChange(payload);
   });
+
+  // Si ya hay usuario logueado, cargar notificaciones
+  if (authUser.value && myPlayer.value) {
+    await loadHelpNotifications();
+    helpSubscription = subscribeToHelpRequests((payload) => {
+      handleNewHelpRequest(payload);
+    });
+  }
 });
 
 onUnmounted(() => {
@@ -546,6 +773,7 @@ onUnmounted(() => {
   document.removeEventListener("click", onDocumentClick);
   if (authSubscription) authSubscription.unsubscribe();
   if (statusSubscription) statusSubscription.unsubscribe();
+  if (helpSubscription) helpSubscription.unsubscribe();
   clearPreviewUrl();
 });
 </script>

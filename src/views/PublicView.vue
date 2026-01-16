@@ -222,7 +222,7 @@
 
     <!-- Notificaciones de muerte -->
     <DeathNotification :notifications="deathNotifications" />
-    
+
     <!-- Notificaciones de cambio de estado -->
     <StatusChangeNotification :notifications="statusNotifications" />
 
@@ -231,6 +231,16 @@
       <img :src="bookIconUrl" alt="Reglas" />
     </button>
     <Rules v-if="rulesVisible" @close="rulesVisible = false" />
+
+    <!-- Campana de notificaciones -->
+    <NotificationBell
+      v-if="authUser"
+      :notifications="helpNotifications"
+      @mark-read="handleMarkNotificationRead"
+      @mark-all-read="handleMarkAllRead"
+      @dismiss="handleDismissNotification"
+      @clear-all="handleClearAll"
+    />
   </div>
 </template>
 
@@ -244,6 +254,11 @@ import {
   subscribeToPlayers,
   subscribeToLifeEvents,
   subscribeToStatusChanges,
+  subscribeToHelpRequests,
+  getMyNotifications,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
+  deleteNotification,
   getVipProfile,
   getSession,
   getMyPlayer,
@@ -255,6 +270,7 @@ import PlayerCard from "@/components/PlayerCard.vue";
 import DeathNotification from "@/components/DeathNotification.vue";
 import StatusChangeNotification from "@/components/StatusChangeNotification.vue";
 import GameOverBanner from "@/components/GameOverBanner.vue";
+import NotificationBell from "@/components/NotificationBell.vue";
 import Rules from "@/components/Rules.vue";
 import hahaDamageSound from "@/assets/audio/hahaDamage.mp3";
 import minecraftDamageSound from "@/assets/audio/MinecraftDamage.mp3";
@@ -269,6 +285,7 @@ const bookIconUrl = "/icons/book.png";
 const players = ref([]);
 const deathNotifications = ref([]);
 const statusNotifications = ref([]);
+const helpNotifications = ref([]);
 const vipProfile = ref(null);
 let vipPollTimer = null;
 let notificationId = 0;
@@ -276,6 +293,7 @@ let statusNotificationId = 0;
 let playersSubscription = null;
 let eventsSubscription = null;
 let statusSubscription = null;
+let helpSubscription = null;
 let audioContext = null;
 let rulesVisible = ref(false);
 
@@ -547,15 +565,33 @@ onMounted(async () => {
   // Escuchar cambios de auth (login/logout)
   authSubscription = supabase.auth.onAuthStateChange(
     async (_event, session) => {
+      const wasLoggedIn = !!authUser.value;
       authUser.value = session?.user || null;
+
       if (authUser.value) {
         try {
           myPlayer.value = await getMyPlayer();
         } catch {
           myPlayer.value = null;
         }
+
+        // Cargar notificaciones y suscribirse si acaba de loguearse
+        if (!wasLoggedIn) {
+          await loadHelpNotifications();
+          if (!helpSubscription) {
+            helpSubscription = subscribeToHelpRequests((payload) => {
+              handleNewHelpRequest(payload);
+            });
+          }
+        }
       } else {
         myPlayer.value = null;
+        helpNotifications.value = [];
+        // Desuscribirse al hacer logout
+        if (helpSubscription) {
+          helpSubscription.unsubscribe();
+          helpSubscription = null;
+        }
       }
     }
   ).data.subscription;
@@ -583,6 +619,14 @@ onMounted(async () => {
   statusSubscription = subscribeToStatusChanges((payload) => {
     handleStatusChange(payload);
   });
+
+  // Cargar notificaciones de ayuda y suscribirse
+  if (authUser.value) {
+    await loadHelpNotifications();
+    helpSubscription = subscribeToHelpRequests((payload) => {
+      handleNewHelpRequest(payload);
+    });
+  }
 });
 
 onUnmounted(() => {
@@ -598,6 +642,10 @@ onUnmounted(() => {
   }
   if (statusSubscription) {
     statusSubscription.unsubscribe();
+  }
+
+  if (helpSubscription) {
+    helpSubscription.unsubscribe();
   }
 
   if (authSubscription) {
@@ -623,6 +671,130 @@ async function requestDesktopPermission() {
 
 async function loadPlayers() {
   players.value = await getPlayers();
+}
+
+// ==================== NOTIFICACIONES DE AYUDA ====================
+
+async function loadHelpNotifications() {
+  try {
+    const data = await getMyNotifications({ limit: 50 });
+    helpNotifications.value = data.map((n) => ({
+      id: n.id,
+      type: n.type,
+      message: n.message,
+      senderName:
+        n.sender?.nickname ||
+        `${n.sender?.first_name || ""} ${n.sender?.last_name || ""}`.trim() ||
+        "Anónimo",
+      senderImage: n.sender?.image_url || "",
+      read: n.read,
+      createdAt: n.created_at,
+    }));
+  } catch (e) {
+    console.error("[Help] Error cargando notificaciones:", e);
+    helpNotifications.value = [];
+  }
+}
+
+async function handleNewHelpRequest(payload) {
+  // Solo procesar si el nuevo registro nos corresponde
+  const newRecord = payload?.new;
+  if (!newRecord) return;
+
+  // No mostrar mis propias solicitudes
+  if (authUser.value && newRecord.sender_id === authUser.value.id) return;
+
+  // Verificar si el mensaje es para mí
+  const isForMe =
+    newRecord.type === "general" ||
+    (newRecord.type === "specific" &&
+      myPlayer.value &&
+      newRecord.target_player_id === myPlayer.value.id);
+
+  if (!isForMe) return;
+
+  // Obtener datos del sender
+  let senderName = "Alguien";
+  let senderImage = "";
+
+  if (newRecord.sender_player_id) {
+    try {
+      const player = await getPlayerById(newRecord.sender_player_id);
+      if (player) {
+        senderName =
+          player.nickname ||
+          `${player.first_name || ""} ${player.last_name || ""}`.trim() ||
+          "Jugador";
+        senderImage = player.image_url || "";
+      }
+    } catch (e) {
+      console.error("[Help] Error obteniendo datos del sender:", e);
+    }
+  }
+
+  const notification = {
+    id: newRecord.id,
+    type: newRecord.type,
+    message: newRecord.message,
+    senderName,
+    senderImage,
+    read: false,
+    createdAt: newRecord.created_at,
+  };
+
+  // Agregar al inicio de la lista
+  helpNotifications.value.unshift(notification);
+
+  // Desktop notification si está en segundo plano
+  if (document.hidden) {
+    showDesktopNotification({
+      title: newRecord.type === "general" ? "Ayuda General" : "Te mencionaron",
+      body: `${senderName}: ${newRecord.message}`,
+      tag: `help-${newRecord.id}`,
+    });
+  }
+}
+
+async function handleMarkNotificationRead(notificationId) {
+  try {
+    await markNotificationAsRead(notificationId);
+    const idx = helpNotifications.value.findIndex(
+      (n) => n.id === notificationId
+    );
+    if (idx !== -1) {
+      helpNotifications.value[idx].read = true;
+    }
+  } catch (e) {
+    console.error("[Help] Error marcando notificación como leída:", e);
+  }
+}
+
+async function handleMarkAllRead() {
+  try {
+    await markAllNotificationsAsRead();
+    helpNotifications.value.forEach((n) => (n.read = true));
+  } catch (e) {
+    console.error("[Help] Error marcando todas como leídas:", e);
+  }
+}
+
+async function handleDismissNotification(notificationId) {
+  try {
+    await deleteNotification(notificationId);
+    helpNotifications.value = helpNotifications.value.filter(
+      (n) => n.id !== notificationId
+    );
+  } catch (e) {
+    console.error("[Help] Error eliminando notificación:", e);
+  }
+}
+
+function handleClearAll() {
+  // Eliminar todas las notificaciones una por una
+  const ids = helpNotifications.value.map((n) => n.id);
+  Promise.all(ids.map((id) => deleteNotification(id))).then(() => {
+    helpNotifications.value = [];
+  });
 }
 
 async function handleStatusChange(payload) {
