@@ -27,31 +27,10 @@
 
             <h2 class="tab-title">
               <span class="chapter-label">Historial:</span>
-              Vidas Perdidas
+              {{
+                selectedMonth === null ? "Vidas Perdidas" : selectedMonthLabel
+              }}
             </h2>
-
-            <!-- Filtro de meses -->
-            <div class="month-filter">
-              <span class="filter-label">Filtrar por mes:</span>
-              <div class="month-buttons">
-                <button
-                  class="month-btn"
-                  :class="{ active: selectedMonth === null }"
-                  @click="selectedMonth = null"
-                >
-                  Todos
-                </button>
-                <button
-                  v-for="month in availableMonths"
-                  :key="month.value"
-                  class="month-btn"
-                  :class="{ active: selectedMonth === month.value }"
-                  @click="selectedMonth = month.value"
-                >
-                  {{ month.label }}
-                </button>
-              </div>
-            </div>
 
             <!-- Botón actualizar -->
             <button
@@ -81,7 +60,7 @@
 
               <!-- Sin eventos -->
               <div
-                v-else-if="filteredGroups.length === 0"
+                v-else-if="allFilteredEvents.length === 0"
                 class="empty-content"
               >
                 <Sparkles :size="32" class="empty-icon" />
@@ -95,39 +74,39 @@
                 </p>
               </div>
 
-              <!-- Lista de eventos agrupados por mes -->
-              <div v-else class="history-groups">
+              <!-- Lista de eventos paginados -->
+              <div v-else class="history-events-page">
+                <!-- Header con total si hay mes seleccionado -->
                 <div
-                  v-for="group in filteredGroups"
-                  :key="group.key"
-                  class="history-month-group"
+                  v-if="selectedMonth !== null && currentMonthGroup"
+                  class="month-header"
                 >
-                  <div class="month-header">
-                    <span class="month-name">{{ group.label }}</span>
-                    <span class="month-total">-{{ group.total }} vidas</span>
-                  </div>
+                  <span class="month-name">{{ currentMonthGroup.label }}</span>
+                  <span class="month-total"
+                    >-{{ currentMonthGroup.total }} vidas</span
+                  >
+                </div>
 
-                  <div class="events-list">
-                    <div
-                      v-for="ev in group.events"
-                      :key="ev.id"
-                      class="event-entry"
-                    >
-                      <div class="event-row">
-                        <span class="event-date">{{
-                          formatEventDate(ev.created_at)
-                        }}</span>
-                        <span class="event-amount"
-                          >-{{ Math.abs(ev.delta) }}</span
-                        >
-                        <span class="event-reason">{{
-                          normalizeReason(ev.reason) || "Sin motivo"
-                        }}</span>
-                      </div>
-                      <div v-if="hasAdminNote(ev)" class="event-note">
-                        <FileText :size="12" class="note-icon" />
-                        {{ ev.admin_message }}
-                      </div>
+                <div class="events-list">
+                  <div
+                    v-for="ev in paginatedEvents"
+                    :key="ev.id"
+                    class="event-entry"
+                  >
+                    <div class="event-row">
+                      <span class="event-date">{{
+                        formatEventDate(ev.created_at)
+                      }}</span>
+                      <span class="event-amount"
+                        >-{{ Math.abs(ev.delta) }}</span
+                      >
+                      <span class="event-reason">{{
+                        normalizeReason(ev.reason) || "Sin motivo"
+                      }}</span>
+                    </div>
+                    <div v-if="hasAdminNote(ev)" class="event-note">
+                      <FileText :size="12" class="note-icon" />
+                      {{ ev.admin_message }}
                     </div>
                   </div>
                 </div>
@@ -135,24 +114,42 @@
             </div>
           </div>
 
-          <!-- Controles de navegación inferior (info de página) -->
+          <!-- Controles de navegación inferior -->
           <div class="page-controls">
-            <div class="page-info">
-              <span class="year-label">{{ currentYear }}</span>
+            <!-- Botones de navegación de páginas -->
+            <div class="nav-buttons">
+              <button
+                class="nav-btn prev-btn"
+                @click="prevPage"
+                :disabled="currentPage === 0"
+                title="Página anterior"
+              >
+                ◄
+              </button>
+              <button
+                class="nav-btn next-btn"
+                @click="nextPage"
+                :disabled="currentPage >= totalPages - 1"
+                title="Página siguiente"
+              >
+                ►
+              </button>
             </div>
+
+            <!-- Número de página -->
             <div class="page-number">
-              {{ filteredGroups.length }}
-              {{ filteredGroups.length === 1 ? "mes" : "meses" }}
+              {{ currentPage + 1 }} of {{ totalPages }}
             </div>
           </div>
         </div>
 
         <!-- Tabs laterales con meses -->
         <div class="tabs-sidebar">
+          <!-- Tab "Todos" -->
           <button
             class="tab-btn-side"
             :class="{ active: selectedMonth === null }"
-            @click="selectedMonth = null"
+            @click="selectMonth(null)"
             title="Ver todos los meses"
           >
             <template v-if="selectedMonth === null">
@@ -165,8 +162,9 @@
             <Calendar v-else :size="18" class="tab-icon" />
           </button>
 
+          <!-- Tabs de meses -->
           <button
-            v-for="(month, index) in displayedMonthTabs"
+            v-for="(month, index) in monthsWithEvents"
             :key="month.value"
             class="tab-btn-side"
             :class="{ active: selectedMonth === month.value }"
@@ -174,7 +172,7 @@
               backgroundColor:
                 selectedMonth === month.value ? '#f5ede0' : getTabColor(index),
             }"
-            @click="selectedMonth = month.value"
+            @click="selectMonth(month.value)"
             :title="month.label"
           >
             <template v-if="selectedMonth === month.value">
@@ -193,7 +191,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from "vue";
+import { ref, computed, watch } from "vue";
 import {
   ArrowLeft,
   Scroll,
@@ -228,6 +226,9 @@ const props = defineProps({
 
 defineEmits(["close", "refresh"]);
 
+// Paginación
+const ITEMS_PER_PAGE = 5;
+const currentPage = ref(0);
 const selectedMonth = ref(null);
 const currentYear = new Date().getFullYear();
 
@@ -247,109 +248,129 @@ const getTabColor = (index) => {
   return tabColors[index % tabColors.length] || "#d4a373";
 };
 
-// Eventos de pérdida de vida (delta negativo)
+// Meses del año
+const months = [
+  { value: 0, label: "Enero", shortLabel: "Ene" },
+  { value: 1, label: "Febrero", shortLabel: "Feb" },
+  { value: 2, label: "Marzo", shortLabel: "Mar" },
+  { value: 3, label: "Abril", shortLabel: "Abr" },
+  { value: 4, label: "Mayo", shortLabel: "May" },
+  { value: 5, label: "Junio", shortLabel: "Jun" },
+  { value: 6, label: "Julio", shortLabel: "Jul" },
+  { value: 7, label: "Agosto", shortLabel: "Ago" },
+  { value: 8, label: "Septiembre", shortLabel: "Sep" },
+  { value: 9, label: "Octubre", shortLabel: "Oct" },
+  { value: 10, label: "Noviembre", shortLabel: "Nov" },
+  { value: 11, label: "Diciembre", shortLabel: "Dic" },
+];
+
+// Eventos de pérdida de vida del año actual (delta negativo)
 const lifeLossEvents = computed(() => {
-  return (props.events || []).filter((ev) => Number(ev?.delta ?? 0) < 0);
+  return (props.events || [])
+    .filter((ev) => {
+      const date = ev?.created_at ? new Date(ev.created_at) : null;
+      if (!date || Number.isNaN(date.getTime())) return false;
+      return date.getFullYear() === currentYear && Number(ev?.delta ?? 0) < 0;
+    })
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 });
 
-// Meses disponibles del año actual
-const availableMonths = computed(() => {
-  const months = [];
-  const currentDate = new Date();
-  const currentMonth = currentDate.getMonth();
-
-  const monthNames = [
-    "Enero",
-    "Febrero",
-    "Marzo",
-    "Abril",
-    "Mayo",
-    "Junio",
-    "Julio",
-    "Agosto",
-    "Septiembre",
-    "Octubre",
-    "Noviembre",
-    "Diciembre",
-  ];
-
-  const shortMonthNames = [
-    "Ene",
-    "Feb",
-    "Mar",
-    "Abr",
-    "May",
-    "Jun",
-    "Jul",
-    "Ago",
-    "Sep",
-    "Oct",
-    "Nov",
-    "Dic",
-  ];
-
-  // Solo mostrar meses hasta el mes actual del año actual
-  for (let i = 0; i <= currentMonth; i++) {
-    months.push({
-      value: i,
-      label: monthNames[i],
-      shortLabel: shortMonthNames[i],
-    });
-  }
-
-  return months.reverse(); // Más reciente primero
-});
-
-// Tabs de meses para mostrar en el sidebar (máximo 6)
-const displayedMonthTabs = computed(() => {
-  return availableMonths.value.slice(0, 6);
+// Meses que tienen eventos (para tabs laterales)
+const monthsWithEvents = computed(() => {
+  const monthsSet = new Set();
+  lifeLossEvents.value.forEach((ev) => {
+    const d = new Date(ev.created_at);
+    monthsSet.add(d.getMonth());
+  });
+  return months
+    .filter((m) => monthsSet.has(m.value))
+    .sort((a, b) => b.value - a.value);
 });
 
 // Agrupar eventos por mes
 const lifeLossGroups = computed(() => {
-  const formatter = new Intl.DateTimeFormat("es-ES", {
-    month: "long",
-    year: "numeric",
-  });
-
   const byKey = new Map();
   for (const ev of lifeLossEvents.value) {
-    const createdAt = ev?.created_at;
-    const date = createdAt ? new Date(createdAt) : null;
-    if (!date || Number.isNaN(date.getTime())) continue;
-
-    // Solo eventos del año actual
-    if (date.getFullYear() !== currentYear) continue;
-
-    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
-      2,
-      "0"
-    )}`;
+    const date = new Date(ev.created_at);
     const monthIndex = date.getMonth();
+    const key = `${date.getFullYear()}-${monthIndex}`;
 
     if (!byKey.has(key)) {
-      const label = String(
-        formatter.format(new Date(date.getFullYear(), date.getMonth(), 1))
-      ).toUpperCase();
-      byKey.set(key, { key, label, total: 0, events: [], monthIndex });
+      byKey.set(key, {
+        key,
+        label: months[monthIndex].label.toUpperCase(),
+        total: 0,
+        events: [],
+        monthIndex,
+      });
     }
     const group = byKey.get(key);
     group.total += Math.abs(Number(ev?.delta ?? 0));
     group.events.push(ev);
   }
 
-  return Array.from(byKey.values()).sort((a, b) => b.key.localeCompare(a.key));
+  return Array.from(byKey.values()).sort((a, b) => b.monthIndex - a.monthIndex);
 });
 
-// Grupos filtrados por mes seleccionado
-const filteredGroups = computed(() => {
+// Eventos filtrados según el mes seleccionado
+const allFilteredEvents = computed(() => {
   if (selectedMonth.value === null) {
-    return lifeLossGroups.value;
+    return lifeLossEvents.value;
   }
-  return lifeLossGroups.value.filter(
-    (group) => group.monthIndex === selectedMonth.value
-  );
+  return lifeLossEvents.value.filter((ev) => {
+    const d = new Date(ev.created_at);
+    return d.getMonth() === selectedMonth.value;
+  });
 });
+
+// Grupo del mes actual (para mostrar header)
+const currentMonthGroup = computed(() => {
+  if (selectedMonth.value === null) return null;
+  return lifeLossGroups.value.find((g) => g.monthIndex === selectedMonth.value);
+});
+
+// Label del mes seleccionado
+const selectedMonthLabel = computed(() => {
+  const m = months.find((m) => m.value === selectedMonth.value);
+  return m ? m.label : "Vidas Perdidas";
+});
+
+// Paginación: total de páginas
+const totalPages = computed(() => {
+  const total = allFilteredEvents.value.length;
+  if (total === 0) return 1;
+  return Math.ceil(total / ITEMS_PER_PAGE);
+});
+
+// Eventos de la página actual
+const paginatedEvents = computed(() => {
+  const start = currentPage.value * ITEMS_PER_PAGE;
+  const end = start + ITEMS_PER_PAGE;
+  return allFilteredEvents.value.slice(start, end);
+});
+
+// Resetear página al cambiar filtro
+watch(selectedMonth, () => {
+  currentPage.value = 0;
+});
+
+// Navegación de páginas
+function prevPage() {
+  if (currentPage.value > 0) {
+    currentPage.value--;
+  }
+}
+
+function nextPage() {
+  if (currentPage.value < totalPages.value - 1) {
+    currentPage.value++;
+  }
+}
+
+// Seleccionar mes
+function selectMonth(monthValue) {
+  selectedMonth.value = monthValue;
+}
 
 function normalizeReason(reason) {
   const raw = String(reason || "").trim();
@@ -541,49 +562,6 @@ function hasAdminNote(ev) {
   text-transform: capitalize;
 }
 
-/* Filtro de meses */
-.month-filter {
-  margin-bottom: 0.8rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.filter-label {
-  font-family: "Press Start 2P", "Courier New", monospace;
-  font-size: 0.5rem;
-  color: rgba(90, 56, 37, 0.7);
-}
-
-.month-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-}
-
-.month-btn {
-  font-family: "Press Start 2P", "Courier New", monospace;
-  font-size: 0.45rem;
-  padding: 0.5rem 0.7rem;
-  background: #e8dcc8;
-  border: 2px solid #5a3825;
-  color: #5a3825;
-  cursor: pointer;
-  transition: all 0.2s;
-  box-shadow: inset -1px -1px 0 rgba(0, 0, 0, 0.2),
-    inset 1px 1px 0 rgba(255, 255, 255, 0.3), 2px 2px 0 rgba(0, 0, 0, 0.2);
-}
-
-.month-btn:hover {
-  background: #d4c4b0;
-}
-
-.month-btn.active {
-  background: #5a3825;
-  color: #f5ede0;
-  box-shadow: inset 1px 1px 0 rgba(0, 0, 0, 0.3), 1px 1px 0 rgba(0, 0, 0, 0.2);
-}
-
 /* Botón actualizar */
 .refresh-btn {
   align-self: flex-start;
@@ -687,18 +665,11 @@ function hasAdminNote(ev) {
   opacity: 0.8;
 }
 
-/* Grupos de historial */
-.history-groups {
+/* Eventos paginados */
+.history-events-page {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-}
-
-.history-month-group {
-  border: 2px solid rgba(90, 56, 37, 0.3);
-  border-radius: 4px;
-  background: rgba(90, 56, 37, 0.05);
-  overflow: hidden;
+  gap: 0.8rem;
 }
 
 .month-header {
@@ -707,7 +678,8 @@ function hasAdminNote(ev) {
   align-items: center;
   padding: 0.6rem 0.8rem;
   background: rgba(90, 56, 37, 0.1);
-  border-bottom: 2px solid rgba(90, 56, 37, 0.2);
+  border: 2px solid rgba(90, 56, 37, 0.2);
+  border-radius: 4px;
 }
 
 .month-name {
@@ -725,7 +697,6 @@ function hasAdminNote(ev) {
 }
 
 .events-list {
-  padding: 0.6rem;
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
@@ -792,25 +763,47 @@ function hasAdminNote(ev) {
   z-index: 2;
 }
 
-.page-info {
+.nav-buttons {
   display: flex;
   gap: 0.5rem;
-  align-items: center;
 }
 
-.year-label {
+.nav-btn {
   font-family: "Press Start 2P", "Courier New", monospace;
-  font-size: 0.55rem;
-  color: rgba(90, 56, 37, 0.6);
-  background: rgba(90, 56, 37, 0.1);
-  padding: 0.3rem 0.6rem;
-  border-radius: 2px;
+  font-size: 0.7rem;
+  padding: 0.4rem 0.6rem;
+  background: #d4a373;
+  border: 3px solid #5a3825;
+  color: #5a3825;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: inset -2px -2px 0 rgba(0, 0, 0, 0.2),
+    inset 2px 2px 0 rgba(255, 255, 255, 0.2), 2px 2px 0 rgba(0, 0, 0, 0.3);
+}
+
+.nav-btn:hover:not(:disabled) {
+  background: #e8c88c;
+  transform: translateY(-1px);
+}
+
+.nav-btn:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow: inset 2px 2px 0 rgba(0, 0, 0, 0.2), 1px 1px 0 rgba(0, 0, 0, 0.2);
+}
+
+.nav-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background: #b8a898;
 }
 
 .page-number {
   font-family: "Press Start 2P", "Courier New", monospace;
   font-size: 0.5rem;
-  color: rgba(90, 56, 37, 0.5);
+  color: rgba(90, 56, 37, 0.6);
+  background: rgba(90, 56, 37, 0.08);
+  padding: 0.3rem 0.6rem;
+  border-radius: 2px;
 }
 
 /* ============================================
@@ -961,15 +954,6 @@ function hasAdminNote(ev) {
     font-size: 0.35rem;
   }
 
-  .month-buttons {
-    gap: 0.3rem;
-  }
-
-  .month-btn {
-    font-size: 0.3rem;
-    padding: 0.3rem 0.5rem;
-  }
-
   .tab-content {
     font-size: 0.4rem;
   }
@@ -1007,8 +991,13 @@ function hasAdminNote(ev) {
     right: 1rem;
   }
 
-  .filter-label {
-    font-size: 0.35rem;
+  .nav-btn {
+    font-size: 0.5rem;
+    padding: 0.3rem 0.5rem;
+  }
+
+  .page-number {
+    font-size: 0.4rem;
   }
 
   .refresh-btn {
@@ -1040,10 +1029,6 @@ function hasAdminNote(ev) {
     margin-left: 0.5rem;
   }
 
-  .month-filter {
-    margin-bottom: 0.6rem;
-  }
-
   .tab-btn-side {
     width: 38px;
     height: 38px;
@@ -1061,7 +1046,11 @@ function hasAdminNote(ev) {
     font-size: 0.35rem;
   }
 
-  .year-label,
+  .nav-btn {
+    font-size: 0.45rem;
+    padding: 0.25rem 0.4rem;
+  }
+
   .page-number {
     font-size: 0.35rem;
   }
