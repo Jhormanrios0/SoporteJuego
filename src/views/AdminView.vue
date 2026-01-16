@@ -177,6 +177,9 @@
       :cause="gameOverCause"
       @close="hideGameOver"
     />
+    
+    <!-- Notificaciones de cambio de estado -->
+    <StatusChangeNotification :notifications="statusNotifications" />
   </div>
 </template>
 
@@ -196,10 +199,13 @@ import {
   resetAllLives,
   deletePlayer,
   subscribeToLifeEvents,
+  subscribeToStatusChanges,
+  supabase,
 } from "@/services/supabase";
 import AdminPlayerRow from "@/components/AdminPlayerRow.vue";
 import ConfirmModal from "@/components/ConfirmModal.vue";
 import GameOverBanner from "@/components/GameOverBanner.vue";
+import StatusChangeNotification from "@/components/StatusChangeNotification.vue";
 
 const router = useRouter();
 
@@ -228,6 +234,11 @@ const gameOverVisible = ref(false);
 const gameOverPlayerName = ref("");
 const gameOverCause = ref("");
 const gameOverQueue = [];
+
+// Notificaciones de estado
+const statusNotifications = ref([]);
+let statusNotificationId = 0;
+let statusSubscription = null;
 let gameOverTimer = null;
 let liveEventsSubscription = null;
 
@@ -343,6 +354,66 @@ async function handleLogout() {
   }
 }
 
+async function handleStatusChange(payload) {
+  console.log("[Status] Cambio de estado recibido:", payload);
+
+  // Verificar que hay cambios en la columna status
+  if (payload?.new && payload.new.status) {
+    const oldStatus = payload.old?.status;
+    const newStatus = payload.new.status;
+
+    // Solo notificar si realmente cambió el status
+    if (JSON.stringify(oldStatus) === JSON.stringify(newStatus)) return;
+
+    try {
+      // Obtener datos del jugador/perfil
+      const { data: profile, error } = await supabase
+        .from("profiles")
+        .select("first_name, last_name, email")
+        .eq("id", payload.new.id)
+        .single();
+
+      if (error) throw error;
+
+      const playerName =
+        profile.first_name && profile.last_name
+          ? `${profile.first_name} ${profile.last_name}`
+          : profile.email?.split("@")[0] || "Usuario";
+
+      const id = ++statusNotificationId;
+
+      const notification = {
+        id,
+        playerName,
+        status: newStatus.status || "Sin estado",
+        color: newStatus.color || "#00ffc2",
+        index: statusNotifications.value.length,
+      };
+
+      statusNotifications.value.push(notification);
+
+      // Actualizar índices
+      statusNotifications.value.forEach((notif, idx) => {
+        notif.index = idx;
+      });
+
+      // Remover después de 5 segundos
+      setTimeout(() => {
+        const index = statusNotifications.value.findIndex((n) => n.id === id);
+        if (index !== -1) {
+          statusNotifications.value.splice(index, 1);
+          // Actualizar índices después de remover
+          statusNotifications.value.forEach((notif, idx) => {
+            notif.index = idx;
+          });
+        }
+      }, 5000);
+    } catch (error) {
+      console.error("Error al procesar cambio de estado:", error);
+    }
+  }
+}
+
 function startSubscriptions() {
   if (liveEventsSubscription) return;
   liveEventsSubscription = subscribeToLifeEvents(async (payload) => {
@@ -370,12 +441,21 @@ function startSubscriptions() {
       }
     }
   });
+
+  // Suscribirse a cambios de estado
+  statusSubscription = subscribeToStatusChanges((payload) => {
+    handleStatusChange(payload);
+  });
 }
 
 function stopSubscriptions() {
   if (liveEventsSubscription) {
     liveEventsSubscription.unsubscribe();
     liveEventsSubscription = null;
+  }
+  if (statusSubscription) {
+    statusSubscription.unsubscribe();
+    statusSubscription = null;
   }
 }
 

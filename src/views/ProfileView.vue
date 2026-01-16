@@ -129,6 +129,7 @@
                 <div class="identity-tag">JUGADOR</div>
                 <div class="identity-name">{{ fullName || userLabel }}</div>
                 <div class="identity-sub">{{ authUser?.email }}</div>
+                <ProfileStatus />
 
                 <div v-if="profileNeedsRegister" class="identity-warn">
                   Tu registro está pendiente. Completa nombre y apellido para
@@ -200,6 +201,9 @@
         @refresh="refreshLifeHistory"
       />
     </Transition>
+
+    <!-- Notificaciones de cambio de estado -->
+    <StatusChangeNotification :notifications="statusNotifications" />
   </div>
 </template>
 
@@ -215,9 +219,12 @@ import {
   getSession,
   getLifeEventsForPlayer,
   replaceMyPlayerImage,
+  subscribeToStatusChanges,
   supabase,
   userLogout,
 } from "@/services/supabase";
+import ProfileStatus from "@/components/ProfileStatus.vue";
+import StatusChangeNotification from "@/components/StatusChangeNotification.vue";
 
 const router = useRouter();
 
@@ -227,6 +234,11 @@ const myPlayer = ref(null);
 const authLoading = ref(false);
 const authError = ref("");
 let authSubscription = null;
+
+// Notificaciones de estado
+const statusNotifications = ref([]);
+let statusNotificationId = 0;
+let statusSubscription = null;
 
 // Imagen perfil
 const fileInputEl = ref(null);
@@ -432,6 +444,69 @@ async function onFileSelected(e) {
   }
 }
 
+async function handleStatusChange(payload) {
+  console.log("[Status] Cambio de estado recibido:", payload);
+
+  // Verificar que hay cambios en la columna status
+  if (payload?.new && payload.new.status) {
+    const oldStatus = payload.old?.status;
+    const newStatus = payload.new.status;
+
+    // Solo notificar si realmente cambió el status
+    if (JSON.stringify(oldStatus) === JSON.stringify(newStatus)) return;
+
+    // No notificar si es el propio usuario quien cambió
+    if (authUser.value && payload.new.id === authUser.value.id) return;
+
+    try {
+      // Obtener datos del jugador/perfil
+      const { data: profile, error } = await supabase
+        .from("profiles")
+        .select("first_name, last_name, email")
+        .eq("id", payload.new.id)
+        .single();
+
+      if (error) throw error;
+
+      const playerName =
+        profile.first_name && profile.last_name
+          ? `${profile.first_name} ${profile.last_name}`
+          : profile.email?.split("@")[0] || "Usuario";
+
+      const id = ++statusNotificationId;
+
+      const notification = {
+        id,
+        playerName,
+        status: newStatus.status || "Sin estado",
+        color: newStatus.color || "#00ffc2",
+        index: statusNotifications.value.length,
+      };
+
+      statusNotifications.value.push(notification);
+
+      // Actualizar índices
+      statusNotifications.value.forEach((notif, idx) => {
+        notif.index = idx;
+      });
+
+      // Remover después de 5 segundos
+      setTimeout(() => {
+        const index = statusNotifications.value.findIndex((n) => n.id === id);
+        if (index !== -1) {
+          statusNotifications.value.splice(index, 1);
+          // Actualizar índices después de remover
+          statusNotifications.value.forEach((notif, idx) => {
+            notif.index = idx;
+          });
+        }
+      }, 5000);
+    } catch (error) {
+      console.error("Error al procesar cambio de estado:", error);
+    }
+  }
+}
+
 onMounted(async () => {
   window.addEventListener("keydown", onKeydown);
   document.addEventListener("click", onDocumentClick);
@@ -459,12 +534,18 @@ onMounted(async () => {
       }
     }
   ).data.subscription;
+
+  // Suscribirse a cambios de estado
+  statusSubscription = subscribeToStatusChanges((payload) => {
+    handleStatusChange(payload);
+  });
 });
 
 onUnmounted(() => {
   window.removeEventListener("keydown", onKeydown);
   document.removeEventListener("click", onDocumentClick);
   if (authSubscription) authSubscription.unsubscribe();
+  if (statusSubscription) statusSubscription.unsubscribe();
   clearPreviewUrl();
 });
 </script>
