@@ -176,6 +176,22 @@ export function subscribeToLifeEvents(callback) {
     .subscribe();
 }
 
+/**
+ * Suscripción en tiempo real a cambios de estado en perfiles
+ * @param {Function} callback
+ * @returns {RealtimeChannel}
+ */
+export function subscribeToStatusChanges(callback) {
+  return supabase
+    .channel("public:profiles_status")
+    .on(
+      "postgres_changes",
+      { event: "UPDATE", schema: "public", table: "profiles" },
+      callback
+    )
+    .subscribe();
+}
+
 // ==================== SERVICIOS ADMIN ====================
 
 /**
