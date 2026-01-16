@@ -9,7 +9,7 @@
           <div class="chest-lid">
             <div class="chest-lid-front"></div>
           </div>
-          
+
           <!-- Cuerpo del cofre -->
           <div class="chest-body">
             <div class="chest-panel chest-panel-left"></div>
@@ -17,7 +17,7 @@
             <div class="chest-panel chest-panel-right"></div>
           </div>
         </div>
-        
+
         <!-- Libro saliendo del cofre -->
         <div class="book-from-chest">
           <div class="book-spine-chest"></div>
@@ -33,24 +33,28 @@
       <div v-if="isOpen" class="book-open-container">
         <!-- Contenedor del libro abierto (UNA SOLA PÁGINA) -->
         <div class="book-open-wrapper">
-          
           <!-- SOLO UNA PÁGINA del libro -->
           <div class="book-page">
             <!-- Margen rojo izquierdo -->
             <div class="red-margin"></div>
-            
+
             <!-- Agujeros del lado izquierdo (efecto cuaderno) -->
             <div class="holes-container">
               <div class="hole" v-for="n in 8" :key="n"></div>
             </div>
-            
+
             <!-- Contenido de la pestaña activa -->
             <div class="page-content">
               <!-- Botón cerrar dentro de la página -->
-              <button class="close-book-btn" @click="closeBook" aria-label="Cerrar libro" title="Cerrar libro">
+              <button
+                class="close-book-btn"
+                @click="closeBook"
+                aria-label="Cerrar libro"
+                title="Cerrar libro"
+              >
                 <ArrowLeft :size="20" />
               </button>
-              
+
               <h2 class="tab-title">
                 <span class="chapter-label">Capítulo {{ activeTab + 1 }}:</span>
                 {{ tabs[activeTab] }}
@@ -64,21 +68,21 @@
                 </div>
               </div>
             </div>
-            
+
             <!-- Controles de navegación inferior -->
             <div class="page-controls">
               <!-- Botones de navegación -->
               <div class="nav-buttons">
-                <button 
-                  class="nav-btn prev-btn" 
+                <button
+                  class="nav-btn prev-btn"
                   @click="prevTab"
                   :disabled="activeTab === 0"
                   title="Página anterior"
                 >
                   ◄
                 </button>
-                <button 
-                  class="nav-btn next-btn" 
+                <button
+                  class="nav-btn next-btn"
                   @click="nextTab"
                   :disabled="activeTab === tabs.length - 1"
                   title="Página siguiente"
@@ -86,9 +90,11 @@
                   ►
                 </button>
               </div>
-              
+
               <!-- Número de página -->
-              <div class="page-number">{{ activeTab + 1 }} of {{ tabs.length }}</div>
+              <div class="page-number">
+                {{ activeTab + 1 }} of {{ tabs.length }}
+              </div>
             </div>
           </div>
 
@@ -99,7 +105,10 @@
               :key="index"
               class="tab-btn-side"
               :class="{ active: activeTab === index }"
-              :style="{ backgroundColor: activeTab === index ? '#f5ede0' : getTabColor(index) }"
+              :style="{
+                backgroundColor:
+                  activeTab === index ? '#f5ede0' : getTabColor(index),
+              }"
               @click="selectTab(index)"
               :title="tab"
             >
@@ -129,8 +138,8 @@ import { ArrowLeft } from "lucide-vue-next";
 const props = defineProps({
   standaloneMode: {
     type: Boolean,
-    default: true // Por defecto, muestra el cofre cerrado
-  }
+    default: true, // Por defecto, muestra el cofre cerrado
+  },
 });
 
 // Emits para comunicación con modal
@@ -144,14 +153,14 @@ const tabs = ["Sobre mi", "Lo que hago", "Proyectos", "Contacto"];
 
 // Colores para las pestañas
 const tabColors = [
-  '#e8b68c', // Sobre mi - naranja claro
-  '#d4a373', // Lo que hago - marrón medio
-  '#c99562', // Proyectos - marrón
-  '#b88654'  // Contacto - marrón oscuro
+  "#e8b68c", // Sobre mi - naranja claro
+  "#d4a373", // Lo que hago - marrón medio
+  "#c99562", // Proyectos - marrón
+  "#b88654", // Contacto - marrón oscuro
 ];
 
 const getTabColor = (index) => {
-  return tabColors[index] || '#d4a373';
+  return tabColors[index] || "#d4a373";
 };
 
 const openBook = () => {
@@ -218,7 +227,8 @@ if (!props.standaloneMode) {
 }
 
 @keyframes chestBounce {
-  0%, 100% {
+  0%,
+  100% {
     transform: translateY(0);
   }
   50% {
@@ -251,7 +261,13 @@ if (!props.standaloneMode) {
   width: 100%;
   height: 28px;
   top: 0;
-  background: linear-gradient(180deg, #ff6b1a 0%, #ff5500 30%, #cc4400 70%, #aa3300 100%);
+  background: linear-gradient(
+    180deg,
+    #ff6b1a 0%,
+    #ff5500 30%,
+    #cc4400 70%,
+    #aa3300 100%
+  );
   border: 3px solid #333333;
   border-bottom: 4px solid #1a1a1a;
 }
@@ -282,16 +298,28 @@ if (!props.standaloneMode) {
   position: absolute;
   width: 100%;
   height: 100%;
-  background: 
-    radial-gradient(circle at 20% 30%, rgba(255, 200, 0, 0.3) 0%, transparent 20%),
-    radial-gradient(circle at 70% 60%, rgba(255, 150, 0, 0.2) 0%, transparent 15%),
-    radial-gradient(circle at 40% 80%, rgba(255, 100, 0, 0.25) 0%, transparent 18%);
+  background: radial-gradient(
+      circle at 20% 30%,
+      rgba(255, 200, 0, 0.3) 0%,
+      transparent 20%
+    ),
+    radial-gradient(
+      circle at 70% 60%,
+      rgba(255, 150, 0, 0.2) 0%,
+      transparent 15%
+    ),
+    radial-gradient(
+      circle at 40% 80%,
+      rgba(255, 100, 0, 0.25) 0%,
+      transparent 18%
+    );
   animation: lavaFlow 4s ease-in-out infinite;
   z-index: 1;
 }
 
 @keyframes lavaFlow {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 0.5;
   }
   50% {
@@ -321,7 +349,13 @@ if (!props.standaloneMode) {
   width: 100%;
   height: 46px;
   top: 28px;
-  background: linear-gradient(180deg, #888888 0%, #666666 30%, #555555 70%, #444444 100%);
+  background: linear-gradient(
+    180deg,
+    #888888 0%,
+    #666666 30%,
+    #555555 70%,
+    #444444 100%
+  );
   border: 3px solid #333333;
   border-top: 2px solid #777777;
   display: flex;
@@ -330,7 +364,13 @@ if (!props.standaloneMode) {
 /* Paneles del cofre */
 .chest-panel {
   flex: 1;
-  background: linear-gradient(90deg, #777777 0%, #666666 40%, #555555 60%, #444444 100%);
+  background: linear-gradient(
+    90deg,
+    #777777 0%,
+    #666666 40%,
+    #555555 60%,
+    #444444 100%
+  );
   border-right: 3px solid #222222;
   position: relative;
   overflow: hidden;
@@ -346,8 +386,7 @@ if (!props.standaloneMode) {
   position: absolute;
   width: 100%;
   height: 100%;
-  background: 
-    repeating-linear-gradient(
+  background: repeating-linear-gradient(
       0deg,
       transparent,
       transparent 4px,
@@ -376,8 +415,7 @@ if (!props.standaloneMode) {
   transform: translate(-50%, -50%);
   border: 2px solid #1a1a1a;
   border-radius: 1px;
-  box-shadow: 
-    inset 1px 1px 0 rgba(0, 0, 0, 0.8),
+  box-shadow: inset 1px 1px 0 rgba(0, 0, 0, 0.8),
     inset -1px -1px 0 rgba(255, 255, 255, 0.1);
   z-index: 2;
 }
@@ -425,14 +463,13 @@ if (!props.standaloneMode) {
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 
-    inset -2px -2px 0 rgba(0, 0, 0, 0.3),
+  box-shadow: inset -2px -2px 0 rgba(0, 0, 0, 0.3),
     inset 2px 2px 0 rgba(255, 255, 255, 0.1);
   position: relative;
 }
 
 .book-text-chest {
-  font-family: 'Press Start 2P', monospace;
+  font-family: "Press Start 2P", monospace;
   font-size: 0.6rem;
   color: #ffb800;
   font-weight: bold;
@@ -463,7 +500,7 @@ if (!props.standaloneMode) {
   color: #ff00ff;
   font-size: 2rem;
   cursor: pointer;
-  font-family: 'Press Start 2P', 'Courier New', monospace;
+  font-family: "Press Start 2P", "Courier New", monospace;
   text-shadow: 0 0 15px #ff00ff;
   transition: all 0.2s;
   z-index: 1001;
@@ -471,10 +508,98 @@ if (!props.standaloneMode) {
   display: none;
 }
 
+/* ============================================
+   LIBRO ABIERTO - UNA SOLA PÁGINA
+   ============================================ */
+.book-open-wrapper {
+  position: relative;
+  display: flex;
+  background: #f5ede0;
+  border: 8px solid #5a3825;
+  box-shadow: 0 0 60px rgba(90, 56, 37, 0.5), 0 0 40px rgba(0, 0, 0, 0.7),
+    inset 0 0 20px rgba(0, 0, 0, 0.1);
+  min-height: 550px;
+  max-height: calc(92vh - 36px);
+  width: 100%;
+}
+
+.book-page {
+  flex: 1;
+  padding: 2.5rem 2.5rem 3.5rem 2rem;
+  position: relative;
+  background: linear-gradient(135deg, #f5ede0 0%, #f0e6d6 100%);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Textura de papel con líneas */
+.book-page::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 24px,
+    rgba(90, 56, 37, 0.08) 24px,
+    rgba(90, 56, 37, 0.08) 25px
+  );
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+/* Margen rojo izquierdo */
+.red-margin {
+  position: absolute;
+  left: 1.8rem;
+  top: 2rem;
+  bottom: 2rem;
+  width: 3px;
+  background: rgba(220, 80, 80, 0.4);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Agujeros del lado izquierdo (efecto cuaderno) */
+.holes-container {
+  position: absolute;
+  left: 0.9rem;
+  top: 3rem;
+  bottom: 3rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-evenly;
+  z-index: 1;
+}
+
+.hole {
+  width: 12px;
+  height: 12px;
+  background: radial-gradient(circle at 40% 40%, #e8dcc8, #d4c4b0);
+  border: 2px solid #5a3825;
+  border-radius: 50%;
+  box-shadow: inset 2px 2px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.page-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  z-index: 2;
+  margin-left: 1.2rem;
+  overflow: hidden;
+}
+
+/* Botón cerrar */
 .close-book-btn {
   position: absolute;
-  top: 1rem;
-  left: 1rem;
+  top: 0;
+  left: 0;
   background: transparent;
   border: none;
   cursor: pointer;
@@ -497,99 +622,12 @@ if (!props.standaloneMode) {
   transform: scale(0.95);
 }
 
-/* ============================================
-   LIBRO ABIERTO - UNA SOLA PÁGINA
-   ============================================ */
-.book-open-wrapper {
-  position: relative;
-  display: flex;
-  background: #f5ede0;
-  border: 8px solid #5a3825;
-  box-shadow: 
-    0 0 40px rgba(0, 0, 0, 0.7),
-    inset 0 0 20px rgba(0, 0, 0, 0.1);
-  min-height: 600px;
-  width: 100%;
-}
-
-.book-page {
-  flex: 1;
-  padding: 3rem 3rem 4rem 2.5rem;
-  position: relative;
-  background: linear-gradient(135deg, #f5ede0 0%, #f0e6d6 100%);
-  overflow: hidden;
-}
-
-/* Textura de papel con líneas */
-.book-page::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-image: 
-    repeating-linear-gradient(
-      0deg,
-      transparent,
-      transparent 24px,
-      rgba(90, 56, 37, 0.08) 24px,
-      rgba(90, 56, 37, 0.08) 25px
-    );
-  pointer-events: none;
-  opacity: 0.6;
-}
-
-/* Margen rojo izquierdo */
-.red-margin {
-  position: absolute;
-  left: 2.2rem;
-  top: 2.5rem;
-  bottom: 2.5rem;
-  width: 3px;
-  background: rgba(220, 80, 80, 0.4);
-  pointer-events: none;
-  z-index: 1;
-}
-
-/* Agujeros del lado izquierdo (efecto cuaderno) */
-.holes-container {
-  position: absolute;
-  left: 1.2rem;
-  top: 3.5rem;
-  bottom: 3.5rem;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-evenly;
-  z-index: 1;
-}
-
-.hole {
-  width: 12px;
-  height: 12px;
-  background: radial-gradient(circle at 40% 40%, #e8dcc8, #d4c4b0);
-  border: 2px solid #5a3825;
-  border-radius: 50%;
-  box-shadow: 
-    inset 2px 2px 3px rgba(0, 0, 0, 0.3),
-    0 1px 2px rgba(0, 0, 0, 0.2);
-}
-
-.page-content {
-  min-height: calc(100% - 60px);
-  display: flex;
-  flex-direction: column;
-  position: relative;
-  z-index: 2;
-  margin-left: 1.5rem;
-}
-
 /* Controles de navegación en la parte inferior */
 .page-controls {
   position: absolute;
-  bottom: 1.5rem;
-  left: 2.5rem;
-  right: 2rem;
+  bottom: 1rem;
+  left: 2rem;
+  right: 1.5rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -607,33 +645,27 @@ if (!props.standaloneMode) {
   background: #d4a373;
   border: 4px solid #5a3825;
   cursor: pointer;
-  font-family: 'Press Start 2P', 'Courier New', monospace;
+  font-family: "Press Start 2P", "Courier New", monospace;
   font-size: 0.7rem;
   color: #5a3825;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 
-    inset -2px -2px 0 rgba(0, 0, 0, 0.3),
-    inset 2px 2px 0 rgba(255, 255, 255, 0.2),
-    3px 3px 0 rgba(0, 0, 0, 0.3);
+  box-shadow: inset -2px -2px 0 rgba(0, 0, 0, 0.3),
+    inset 2px 2px 0 rgba(255, 255, 255, 0.2), 3px 3px 0 rgba(0, 0, 0, 0.3);
   transition: all 0.2s;
 }
 
 .nav-btn:hover:not(:disabled) {
   background: #e8c88c;
   transform: translateY(-2px);
-  box-shadow: 
-    inset -2px -2px 0 rgba(0, 0, 0, 0.3),
-    inset 2px 2px 0 rgba(255, 255, 255, 0.3),
-    4px 4px 0 rgba(0, 0, 0, 0.4);
+  box-shadow: inset -2px -2px 0 rgba(0, 0, 0, 0.3),
+    inset 2px 2px 0 rgba(255, 255, 255, 0.3), 4px 4px 0 rgba(0, 0, 0, 0.4);
 }
 
 .nav-btn:active:not(:disabled) {
   transform: translateY(0);
-  box-shadow: 
-    inset 2px 2px 0 rgba(0, 0, 0, 0.3),
-    2px 2px 0 rgba(0, 0, 0, 0.3);
+  box-shadow: inset 2px 2px 0 rgba(0, 0, 0, 0.3), 2px 2px 0 rgba(0, 0, 0, 0.3);
 }
 
 .nav-btn:disabled {
@@ -643,9 +675,9 @@ if (!props.standaloneMode) {
 
 /* Número de página */
 .page-number {
-  font-family: 'Press Start 2P', 'Courier New', monospace;
-  font-size: 0.5rem;
-  color: rgba(90, 56, 37, 0.6);
+  font-family: "Press Start 2P", "Courier New", monospace;
+  font-size: 0.55rem;
+  color: rgba(90, 56, 37, 0.5);
 }
 
 /* ============================================
@@ -653,46 +685,44 @@ if (!props.standaloneMode) {
    ============================================ */
 .tabs-sidebar {
   position: absolute;
-  right: -160px;
+  right: -145px;
   top: -8px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   z-index: 100;
 }
 
 .tab-btn-side {
-  border: 5px solid #5a3825;
-  font-family: 'Press Start 2P', 'Courier New', monospace;
+  border: 4px solid #5a3825;
+  font-family: "Press Start 2P", "Courier New", monospace;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
-  box-shadow: 
-    inset -3px -3px 0 rgba(0, 0, 0, 0.3),
-    inset 3px 3px 0 rgba(255, 255, 255, 0.2),
-    5px 3px 0 rgba(0, 0, 0, 0.4);
+  box-shadow: inset -3px -3px 0 rgba(0, 0, 0, 0.3),
+    inset 3px 3px 0 rgba(255, 255, 255, 0.2), 4px 3px 0 rgba(0, 0, 0, 0.4);
   color: #5a3825;
   font-weight: bold;
   /* Tamaño por defecto (solo +) */
-  width: 50px;
-  height: 50px;
-  padding: 0.6rem;
+  width: 45px;
+  height: 45px;
+  padding: 0.5rem;
   transition: filter 0.2s ease;
+  background: #d4a373;
 }
 
 /* Pestaña activa - HORIZONTAL con Chapter + nombre + flecha */
 .tab-btn-side.active {
   color: #3d2515;
-  box-shadow: 
-    inset 3px 3px 0 rgba(255, 255, 255, 0.5),
-    inset -3px -3px 0 rgba(0, 0, 0, 0.2),
-    4px 2px 0 rgba(0, 0, 0, 0.2);
+  box-shadow: inset 3px 3px 0 rgba(255, 255, 255, 0.5),
+    inset -3px -3px 0 rgba(0, 0, 0, 0.2), 4px 2px 0 rgba(0, 0, 0, 0.2);
   /* Más ancha cuando está activa */
-  width: 150px;
-  height: 60px;
-  padding: 0.8rem 1rem;
+  width: 135px;
+  height: 50px;
+  padding: 0.6rem 0.8rem;
+  background: #f5ede0;
 }
 
 .tab-btn-side:hover {
@@ -704,13 +734,13 @@ if (!props.standaloneMode) {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 0.2rem;
+  gap: 0.15rem;
   width: 100%;
   position: relative;
 }
 
 .tab-chapter {
-  font-size: 0.35rem;
+  font-size: 0.3rem;
   opacity: 0.7;
   text-transform: capitalize;
   display: block;
@@ -718,7 +748,7 @@ if (!props.standaloneMode) {
 }
 
 .tab-name {
-  font-size: 0.45rem;
+  font-size: 0.4rem;
   text-transform: capitalize;
   display: block;
   line-height: 1.3;
@@ -726,15 +756,15 @@ if (!props.standaloneMode) {
 
 .tab-arrow {
   position: absolute;
-  right: -5px;
+  right: -3px;
   top: 50%;
   transform: translateY(-50%);
-  font-size: 0.8rem;
+  font-size: 0.7rem;
   opacity: 0.8;
 }
 
 .tab-plus-side {
-  font-size: 1.2rem;
+  font-size: 1rem;
   font-weight: bold;
   text-shadow: 1px 1px 0 rgba(255, 255, 255, 0.3);
 }
@@ -743,36 +773,36 @@ if (!props.standaloneMode) {
    CONTENIDO DE LA PÁGINA
    ============================================ */
 .tab-title {
-  font-family: 'Press Start 2P', 'Courier New', monospace;
-  font-size: 0.75rem;
+  font-family: "Press Start 2P", "Courier New", monospace;
+  font-size: 0.85rem;
   color: #5a3825;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
   text-transform: capitalize;
   border-bottom: 3px solid #5a3825;
-  padding-bottom: 0.8rem;
+  padding-bottom: 0.6rem;
   letter-spacing: 0.05em;
   font-weight: bold;
   position: relative;
-  padding-top: 1rem;
+  padding-top: 0.5rem;
+  padding-left: 2rem;
 }
 
 .chapter-label {
   display: block;
-  font-size: 0.45rem;
+  font-size: 0.5rem;
   opacity: 0.6;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.4rem;
   text-transform: capitalize;
 }
 
 .tab-content {
   flex: 1;
-  font-family: 'Press Start 2P', 'Courier New', monospace;
-  font-size: 0.5rem;
+  font-family: "Press Start 2P", "Courier New", monospace;
+  font-size: 0.55rem;
   color: #5a3825;
-  line-height: 2;
+  line-height: 1.8;
   overflow-y: auto;
-  padding-right: 1rem;
-  max-height: 400px;
+  padding-right: 0.8rem;
 }
 
 .tab-content::-webkit-scrollbar {
@@ -796,10 +826,13 @@ if (!props.standaloneMode) {
 
 .empty-content {
   text-align: center;
-  color: rgba(90, 56, 37, 0.4);
-  padding: 3rem 2rem;
+  color: rgba(90, 56, 37, 0.5);
+  padding: 2rem 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.8rem;
   font-style: italic;
-  line-height: 2;
   font-size: 0.55rem;
 }
 

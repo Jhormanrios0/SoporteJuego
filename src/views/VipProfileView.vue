@@ -493,21 +493,6 @@ onUnmounted(() => {
   position: relative;
 }
 
-.vip-profile-view::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: repeating-linear-gradient(
-    0deg,
-    rgba(0, 0, 0, 0.15),
-    rgba(0, 0, 0, 0.15) 1px,
-    transparent 1px,
-    transparent 2px
-  );
-  pointer-events: none;
-  z-index: 1;
-}
-
 .profile-header {
   max-width: 1400px;
   margin: 0 auto 26px;

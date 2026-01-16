@@ -149,7 +149,6 @@
             <span class="guest-title-main">SOPORTE</span>
             <span class="guest-title-accent">SQUID GAMES</span>
           </div>
-
         </div>
 
         <button
@@ -1142,25 +1141,6 @@ function onKeydown(e) {
   text-align: center;
   line-height: 1.5;
   position: relative;
-  z-index: 1;
-}
-
-/* Efecto CRT scanlines */
-.public-view::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: repeating-linear-gradient(
-    0deg,
-    rgba(0, 0, 0, 0.15),
-    rgba(0, 0, 0, 0.15) 1px,
-    transparent 1px,
-    transparent 2px
-  );
-  pointer-events: none;
   z-index: 1;
 }
 
