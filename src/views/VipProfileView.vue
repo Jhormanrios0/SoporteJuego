@@ -170,6 +170,9 @@
         </div>
       </div>
     </main>
+    
+    <!-- Notificaciones de cambio de estado -->
+    <StatusChangeNotification :notifications="statusNotifications" />
   </div>
 </template>
 
@@ -182,9 +185,11 @@ import {
   getSession,
   replaceMyProfileAvatar,
   updateMyProfile,
+  subscribeToStatusChanges,
   userLogout,
   supabase,
 } from "@/services/supabase";
+import StatusChangeNotification from "@/components/StatusChangeNotification.vue";
 
 const router = useRouter();
 
@@ -193,6 +198,11 @@ const adminProfile = ref(null);
 const isAdmin = ref(false);
 const authLoading = ref(false);
 let authSubscription = null;
+
+// Notificaciones de estado
+const statusNotifications = ref([]);
+let statusNotificationId = 0;
+let statusSubscription = null;
 
 const fileInputEl = ref(null);
 const previewUrl = ref("");
@@ -351,6 +361,69 @@ async function loadAuth() {
   }
 }
 
+async function handleStatusChange(payload) {
+  console.log("[Status] Cambio de estado recibido:", payload);
+
+  // Verificar que hay cambios en la columna status
+  if (payload?.new && payload.new.status) {
+    const oldStatus = payload.old?.status;
+    const newStatus = payload.new.status;
+
+    // Solo notificar si realmente cambió el status
+    if (JSON.stringify(oldStatus) === JSON.stringify(newStatus)) return;
+
+    // No notificar si es el propio usuario quien cambió
+    if (authUser.value && payload.new.id === authUser.value.id) return;
+
+    try {
+      // Obtener datos del jugador/perfil
+      const { data: profile, error } = await supabase
+        .from("profiles")
+        .select("first_name, last_name, email")
+        .eq("id", payload.new.id)
+        .single();
+
+      if (error) throw error;
+
+      const playerName =
+        profile.first_name && profile.last_name
+          ? `${profile.first_name} ${profile.last_name}`
+          : profile.email?.split("@")[0] || "Usuario";
+
+      const id = ++statusNotificationId;
+
+      const notification = {
+        id,
+        playerName,
+        status: newStatus.status || "Sin estado",
+        color: newStatus.color || "#00ffc2",
+        index: statusNotifications.value.length,
+      };
+
+      statusNotifications.value.push(notification);
+
+      // Actualizar índices
+      statusNotifications.value.forEach((notif, idx) => {
+        notif.index = idx;
+      });
+
+      // Remover después de 5 segundos
+      setTimeout(() => {
+        const index = statusNotifications.value.findIndex((n) => n.id === id);
+        if (index !== -1) {
+          statusNotifications.value.splice(index, 1);
+          // Actualizar índices después de remover
+          statusNotifications.value.forEach((notif, idx) => {
+            notif.index = idx;
+          });
+        }
+      }, 5000);
+    } catch (error) {
+      console.error("Error al procesar cambio de estado:", error);
+    }
+  }
+}
+
 async function logout() {
   try {
     await userLogout();
@@ -373,11 +446,17 @@ onMounted(async () => {
       await loadAuth();
     }
   ).data.subscription;
+
+  // Suscribirse a cambios de estado
+  statusSubscription = subscribeToStatusChanges((payload) => {
+    handleStatusChange(payload);
+  });
 });
 
 onUnmounted(() => {
   document.removeEventListener("click", onDocumentClick);
   if (authSubscription) authSubscription.unsubscribe();
+  if (statusSubscription) statusSubscription.unsubscribe();
   clearPreview();
 });
 </script>
