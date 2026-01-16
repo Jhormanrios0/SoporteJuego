@@ -1,143 +1,172 @@
 <template>
-  <div class="public-view">
-    <!-- VIP overlay (tipo stream/live) -->
-    <div class="vip-overlay" aria-label="VIP en vivo">
-      <div class="vip-card">
-        <div class="vip-avatar">
-          <img
-            v-if="vipProfile?.avatar_url"
-            :src="vipProfile.avatar_url"
-            alt="VIP"
-            class="vip-avatar-img"
-          />
-          <div v-else class="vip-avatar-fallback">VIP</div>
+  <div class="public-view" :class="{ 'guest-locked': guestLocked }">
+    <div class="public-shell">
+      <!-- VIP overlay (tipo stream/live) -->
+      <div class="vip-overlay" aria-label="VIP en vivo">
+        <div class="vip-card">
+          <div class="vip-avatar">
+            <img
+              v-if="vipProfile?.avatar_url"
+              :src="vipProfile.avatar_url"
+              alt="VIP"
+              class="vip-avatar-img"
+            />
+            <div v-else class="vip-avatar-fallback">VIP</div>
+          </div>
         </div>
       </div>
+
+      <!-- Header retro -->
+      <header class="arcade-header">
+        <div class="title-container">
+          <div class="title-decoration top"></div>
+          <h1 class="arcade-title">
+            <Gamepad2 class="title-icon" :size="40" />
+            <span class="title-text">SOPORTE</span>
+            <span class="title-highlight">SQUID GAMES</span>
+            <Gamepad2 class="title-icon" :size="40" />
+          </h1>
+          <div class="title-decoration bottom"></div>
+        </div>
+        <div
+          v-if="authUser"
+          ref="profileMenuEl"
+          class="profile-menu"
+          @keydown.esc.stop.prevent="closeProfileMenu"
+        >
+          <button
+            class="profile-button"
+            type="button"
+            aria-label="Menú de perfil"
+            aria-haspopup="menu"
+            :aria-expanded="profileMenuOpen ? 'true' : 'false'"
+            @click.stop="toggleProfileMenu"
+            @keydown.enter.stop.prevent="toggleProfileMenu"
+            @keydown.space.stop.prevent="toggleProfileMenu"
+          >
+            <span class="profile-avatar">
+              <img
+                v-if="myPlayer?.image_url"
+                :src="myPlayer.image_url"
+                :alt="userLabel"
+                class="profile-avatar-img"
+              />
+              <span v-else class="profile-avatar-fallback">
+                <User :size="18" />
+              </span>
+            </span>
+
+            <span class="profile-meta">
+              <span class="profile-name">{{ userLabel }}</span>
+              <span v-if="profileNeedsRegister" class="profile-sub">
+                Registro pendiente
+              </span>
+            </span>
+
+            <span class="profile-caret" aria-hidden="true">▾</span>
+          </button>
+
+          <Transition name="pixel-pop">
+            <div
+              v-show="profileMenuOpen"
+              class="profile-dropdown"
+              role="menu"
+              aria-label="Opciones de perfil"
+            >
+              <button
+                class="profile-dropdown-item"
+                type="button"
+                role="menuitem"
+                @click="handleProfileMenuProfile"
+              >
+                Perfil
+              </button>
+              <button
+                class="profile-dropdown-item danger"
+                type="button"
+                role="menuitem"
+                @click="handleProfileMenuLogout"
+              >
+                Cerrar sesión
+              </button>
+            </div>
+          </Transition>
+        </div>
+
+        <p class="arcade-subtitle">SISTEMA DE VIDAS • JUGADORES ACTIVOS</p>
+        <div class="stats-bar">
+          <div class="stat-item">
+            <span class="stat-label">Jugadores:</span>
+            <span class="stat-value">{{ activePlayersCount }}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">En riesgo:</span>
+            <span class="stat-value danger">{{ atRiskPlayersCount }}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Eliminados:</span>
+            <span class="stat-value eliminated">{{
+              eliminatedPlayersCount
+            }}</span>
+          </div>
+        </div>
+      </header>
+
+      <!-- Grid de jugadores -->
+      <main class="players-grid">
+        <PlayerCard
+          v-for="player in players"
+          :key="player.id"
+          :player="player"
+        />
+
+        <!-- Estado vacío -->
+        <div v-if="players.length === 0" class="empty-state">
+          <p class="empty-message">No hay jugadores registrados</p>
+          <p class="empty-hint">Inicia sesión y regístrate para aparecer</p>
+        </div>
+      </main>
+
+      <!-- Footer (solo si hay error estando autenticado) -->
+      <footer class="arcade-footer" v-if="!guestLocked && authError">
+        <div class="user-auth">
+          <p class="auth-error">{{ authError }}</p>
+        </div>
+      </footer>
     </div>
 
-    <!-- Header retro -->
-    <header class="arcade-header">
-      <div class="title-container">
-        <div class="title-decoration top"></div>
-        <h1 class="arcade-title">
-          <Gamepad2 class="title-icon" :size="40" />
-          <span class="title-text">SOPORTE</span>
-          <span class="title-highlight">SQUID GAMES</span>
-          <Gamepad2 class="title-icon" :size="40" />
-        </h1>
-        <div class="title-decoration bottom"></div>
-      </div>
-      <div
-        v-if="authUser"
-        ref="profileMenuEl"
-        class="profile-menu"
-        @keydown.esc.stop.prevent="closeProfileMenu"
-      >
-        <button
-          class="profile-button"
-          type="button"
-          aria-label="Menú de perfil"
-          aria-haspopup="menu"
-          :aria-expanded="profileMenuOpen ? 'true' : 'false'"
-          @click.stop="toggleProfileMenu"
-          @keydown.enter.stop.prevent="toggleProfileMenu"
-          @keydown.space.stop.prevent="toggleProfileMenu"
-        >
-          <span class="profile-avatar">
-            <img
-              v-if="myPlayer?.image_url"
-              :src="myPlayer.image_url"
-              :alt="userLabel"
-              class="profile-avatar-img"
-            />
-            <span v-else class="profile-avatar-fallback">
-              <User :size="18" />
-            </span>
-          </span>
-
-          <span class="profile-meta">
-            <span class="profile-name">{{ userLabel }}</span>
-            <span v-if="profileNeedsRegister" class="profile-sub">
-              Registro pendiente
-            </span>
-          </span>
-
-          <span class="profile-caret" aria-hidden="true">▾</span>
-        </button>
-
-        <Transition name="pixel-pop">
-          <div
-            v-show="profileMenuOpen"
-            class="profile-dropdown"
-            role="menu"
-            aria-label="Opciones de perfil"
-          >
-            <button
-              class="profile-dropdown-item"
-              type="button"
-              role="menuitem"
-              @click="handleProfileMenuProfile"
-            >
-              Perfil
-            </button>
-            <button
-              class="profile-dropdown-item danger"
-              type="button"
-              role="menuitem"
-              @click="handleProfileMenuLogout"
-            >
-              Cerrar sesión
-            </button>
+    <!-- Gate de invitado: blur + solo botón de entrada -->
+    <div
+      v-if="guestLocked && !showLoginModal"
+      class="guest-gate"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Bloqueo de contenido"
+    >
+      <div class="guest-gate-card">
+        <div class="guest-title">
+          <div class="guest-title-row">
+            <span class="guest-title-main">SOPORTE</span>
+            <span class="guest-title-accent">SQUID GAMES</span>
           </div>
-        </Transition>
-      </div>
 
-      <p class="arcade-subtitle">SISTEMA DE VIDAS • JUGADORES ACTIVOS</p>
-      <div class="stats-bar">
-        <div class="stat-item">
-          <span class="stat-label">Jugadores:</span>
-          <span class="stat-value">{{ activePlayersCount }}</span>
         </div>
-        <div class="stat-item">
-          <span class="stat-label">En riesgo:</span>
-          <span class="stat-value danger">{{ atRiskPlayersCount }}</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-label">Eliminados:</span>
-          <span class="stat-value eliminated">{{
-            eliminatedPlayersCount
-          }}</span>
-        </div>
-      </div>
-    </header>
 
-    <!-- Grid de jugadores -->
-    <main class="players-grid">
-      <PlayerCard v-for="player in players" :key="player.id" :player="player" />
-
-      <!-- Estado vacío -->
-      <div v-if="players.length === 0" class="empty-state">
-        <p class="empty-message">No hay jugadores registrados</p>
-        <p class="empty-hint">Inicia sesión y regístrate para aparecer</p>
-      </div>
-    </main>
-
-    <!-- Footer -->
-    <footer class="arcade-footer" v-if="!authUser || authError">
-      <div class="user-auth">
         <button
-          v-if="!authUser"
-          class="user-btn"
+          class="user-btn guest-enter"
+          type="button"
           :disabled="authLoading"
           @click="openLoginModal"
         >
           <LogIn class="btn-icon" :size="18" />
-          <span>{{ authLoading ? "CARGANDO…" : "ENTRAR" }}</span>
+          <span>{{ authLoading ? "CARGANDO…" : "ENTRAR AL JUEGO" }}</span>
         </button>
 
-        <p v-if="authError" class="auth-error">{{ authError }}</p>
+        <p class="guest-hint">Inicia sesión para ver el tablero.</p>
+
+        <p v-if="authError" class="guest-error">{{ authError }}</p>
       </div>
-    </footer>
+    </div>
 
     <!-- Modal de login (VIP / Jugador) -->
     <div
@@ -331,6 +360,8 @@ const profileNeedsRegister = computed(() => {
   if (!authUser.value) return false;
   return !myPlayer.value?.id;
 });
+
+const guestLocked = computed(() => !authUser.value);
 
 async function loadAuth() {
   authError.value = "";
@@ -930,6 +961,166 @@ function onKeydown(e) {
     ),
     linear-gradient(180deg, #000000 0%, #0a0020 50%, #000000 100%);
   position: relative;
+}
+
+.public-shell {
+  position: relative;
+  z-index: 2;
+}
+
+.public-view.guest-locked {
+  overflow: hidden;
+}
+
+.public-view.guest-locked .public-shell {
+  filter: blur(11px) saturate(0.6) brightness(0.72);
+  transform: scale(1.02);
+  pointer-events: none;
+  user-select: none;
+}
+
+.guest-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 2500;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: radial-gradient(
+      circle at 50% 35%,
+      rgba(0, 255, 194, 0.08) 0%,
+      rgba(0, 0, 0, 0.76) 55%
+    ),
+    rgba(0, 0, 0, 0.68);
+  backdrop-filter: blur(3px);
+}
+
+.guest-gate-card {
+  width: min(520px, 100%);
+  padding: 18px 18px 16px;
+  border-radius: 14px;
+  border: 2px solid rgba(0, 255, 194, 0.55);
+  background: linear-gradient(
+    180deg,
+    rgba(10, 14, 12, 0.92),
+    rgba(0, 0, 0, 0.76)
+  );
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.62), 0 0 0 2px rgba(0, 0, 0, 0.75),
+    inset 0 0 0 2px rgba(255, 255, 255, 0.06),
+    inset 0 0 0 8px rgba(0, 0, 0, 0.35), 0 0 32px rgba(0, 255, 194, 0.18);
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.guest-gate-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    /* Bloques estilo Minecraft */ repeating-linear-gradient(
+      90deg,
+      rgba(0, 255, 194, 0.06) 0px,
+      rgba(0, 255, 194, 0.06) 2px,
+      transparent 2px,
+      transparent 18px
+    ),
+    repeating-linear-gradient(
+      0deg,
+      rgba(0, 255, 194, 0.04) 0px,
+      rgba(0, 255, 194, 0.04) 2px,
+      transparent 2px,
+      transparent 18px
+    ),
+    radial-gradient(circle at 30% 20%, rgba(0, 255, 136, 0.12), transparent 45%),
+    radial-gradient(
+      circle at 75% 80%,
+      rgba(247, 65, 143, 0.12),
+      transparent 55%
+    );
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.guest-gate-card::after {
+  /* Marco pixelado */
+  content: "";
+  position: absolute;
+  inset: 10px;
+  border: 2px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 2px rgba(0, 255, 194, 0.18),
+    0 0 0 2px rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+}
+
+.guest-title {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 8px;
+  text-align: center;
+}
+
+.guest-title-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.guest-title-main {
+  font-family: "Press Start 2P", monospace;
+  font-size: clamp(1rem, 2.6vw, 1.35rem);
+  color: #00ffc2;
+  text-shadow: 0 0 12px rgba(0, 255, 194, 0.55);
+  letter-spacing: 2px;
+}
+
+.guest-title-accent {
+  font-family: "Press Start 2P", monospace;
+  font-size: clamp(1rem, 2.6vw, 1.35rem);
+  color: #ff2a6d;
+  text-shadow: 0 0 12px rgba(255, 42, 109, 0.5);
+  letter-spacing: 2px;
+}
+
+.guest-title-sub {
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.58rem;
+  color: rgba(255, 255, 255, 0.72);
+  letter-spacing: 1px;
+}
+
+.guest-enter {
+  width: 100%;
+  justify-content: center;
+  padding: 14px 16px;
+  position: relative;
+  z-index: 1;
+}
+
+.guest-hint {
+  margin: 0;
+  position: relative;
+  z-index: 1;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.92rem;
+  text-align: center;
+}
+
+.guest-error {
+  margin: 0;
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.6rem;
+  color: #ffda79;
+  text-align: center;
+  line-height: 1.5;
+  position: relative;
+  z-index: 1;
 }
 
 /* Efecto CRT scanlines */
@@ -1571,7 +1762,7 @@ function onKeydown(e) {
 .login-modal-overlay {
   position: fixed;
   inset: 0;
-  z-index: 50;
+  z-index: 3000;
   display: grid;
   place-items: center;
   padding: 18px;
