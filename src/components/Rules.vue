@@ -3,6 +3,20 @@
         <div class="book-container">
             <!-- Página Izquierda -->
             <div class="book-page left-page">
+                <svg class="creeper-watermark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="200" height="200">
+                    <!-- Ojo izquierdo -->
+                    <rect x="20" y="20" width="20" height="20" fill="#8b4513" opacity="0.08"/>
+                    <!-- Ojo derecho -->
+                    <rect x="60" y="20" width="20" height="20" fill="#8b4513" opacity="0.08"/>
+                    <!-- Nariz -->
+                    <rect x="45" y="45" width="10" height="15" fill="#8b4513" opacity="0.08"/>
+                    <!-- Boca izquierda -->
+                    <rect x="30" y="65" width="15" height="25" fill="#8b4513" opacity="0.08"/>
+                    <!-- Boca centro -->
+                    <rect x="45" y="65" width="10" height="15" fill="#8b4513" opacity="0.08"/>
+                    <!-- Boca derecha -->
+                    <rect x="55" y="65" width="15" height="25" fill="#8b4513" opacity="0.08"/>
+                </svg>
                 <div class="page-border">
                     <div class="page-content">
                         <div class="page-number">Página {{ currentPage }} de {{ totalPages }}</div>
@@ -13,6 +27,20 @@
 
             <!-- Página Derecha -->
             <div class="book-page right-page">
+                <svg class="creeper-watermark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="200" height="200">
+                    <!-- Ojo izquierdo -->
+                    <rect x="20" y="20" width="20" height="20" fill="#8b4513" opacity="0.08"/>
+                    <!-- Ojo derecho -->
+                    <rect x="60" y="20" width="20" height="20" fill="#8b4513" opacity="0.08"/>
+                    <!-- Nariz -->
+                    <rect x="45" y="45" width="10" height="15" fill="#8b4513" opacity="0.08"/>
+                    <!-- Boca izquierda -->
+                    <rect x="30" y="65" width="15" height="25" fill="#8b4513" opacity="0.08"/>
+                    <!-- Boca centro -->
+                    <rect x="45" y="65" width="10" height="15" fill="#8b4513" opacity="0.08"/>
+                    <!-- Boca derecha -->
+                    <rect x="55" y="65" width="15" height="25" fill="#8b4513" opacity="0.08"/>
+                </svg>
                 <div class="page-border">
                     <div class="page-content">
                         <div class="page-number">Página {{ currentPage + 1 }} de {{ totalPages }}</div>
@@ -23,22 +51,41 @@
 
             <!-- Controles de navegación -->
             <div class="controls">
-                <button 
-                    @click="previousPage" 
-                    :disabled="currentPage === 1"
-                    class="nav-button"
-                >
-                    ← Anterior
+                <button @click="previousPage" :disabled="currentPage === 1" class="nav-button">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+                        <!-- Flecha derecha estilo pixel art -->
+                        <rect x="8" y="11" width="2" height="2" fill="#8b4513" />
+                        <rect x="10" y="9" width="2" height="2" fill="#8b4513" />
+                        <rect x="10" y="13" width="2" height="2" fill="#8b4513" />
+                        <rect x="12" y="7" width="2" height="2" fill="#8b4513" />
+                        <rect x="12" y="15" width="2" height="2" fill="#8b4513" />
+                        <rect x="14" y="11" width="2" height="2" fill="#8b4513" />
+                    </svg>
                 </button>
                 <button @click="$emit('close')" class="close-button">
-                    Cerrar Libro
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+                        <!-- X estilo pixel art -->
+                        <rect x="7" y="7" width="2" height="2" fill="#8b4513" />
+                        <rect x="9" y="9" width="2" height="2" fill="#8b4513" />
+                        <rect x="11" y="11" width="2" height="2" fill="#8b4513" />
+                        <rect x="13" y="9" width="2" height="2" fill="#8b4513" />
+                        <rect x="15" y="7" width="2" height="2" fill="#8b4513" />
+                        <rect x="7" y="15" width="2" height="2" fill="#8b4513" />
+                        <rect x="9" y="13" width="2" height="2" fill="#8b4513" />
+                        <rect x="13" y="13" width="2" height="2" fill="#8b4513" />
+                        <rect x="15" y="15" width="2" height="2" fill="#8b4513" />
+                    </svg>
                 </button>
-                <button 
-                    @click="nextPage" 
-                    :disabled="currentPage >= totalPages - 1"
-                    class="nav-button"
-                >
-                    Siguiente →
+                <button @click="nextPage" :disabled="currentPage >= totalPages - 1" class="nav-button">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+                        <!-- Flecha izquierda estilo pixel art -->
+                        <rect x="14" y="11" width="2" height="2" fill="#8b4513" />
+                        <rect x="12" y="9" width="2" height="2" fill="#8b4513" />
+                        <rect x="12" y="13" width="2" height="2" fill="#8b4513" />
+                        <rect x="10" y="7" width="2" height="2" fill="#8b4513" />
+                        <rect x="10" y="15" width="2" height="2" fill="#8b4513" />
+                        <rect x="8" y="11" width="2" height="2" fill="#8b4513" />
+                    </svg>
                 </button>
             </div>
         </div>
@@ -159,6 +206,15 @@ const previousPage = () => {
     position: relative;
 }
 
+.creeper-watermark {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    z-index: 0;
+}
+
 .left-page {
     border-top-left-radius: 8px;
     border-bottom-left-radius: 8px;
@@ -180,6 +236,8 @@ const previousPage = () => {
     border: 3px solid #8b4513;
     border-radius: 4px;
     padding: 15px;
+    z-index: 1;
+    background: transparent;
 }
 
 .page-content {
@@ -189,7 +247,7 @@ const previousPage = () => {
 }
 
 .page-number {
-    font-family: 'Courier New', monospace;
+    font-family: 'Press Start 2P', cursive;
     font-size: 12px;
     text-align: center;
     color: #4a4a4a;
@@ -199,9 +257,9 @@ const previousPage = () => {
 }
 
 .rule-text {
-    font-family: 'Courier New', monospace;
-    font-size: 14px;
-    line-height: 1.6;
+    font-family: 'Press Start 2P', cursive;
+    font-size: 12px;
+    line-height: 1.8;
     color: #2a2a2a;
     white-space: pre-wrap;
     overflow-y: auto;
@@ -236,8 +294,8 @@ const previousPage = () => {
 .nav-button,
 .close-button {
     padding: 10px 20px;
-    font-family: 'Courier New', monospace;
-    font-size: 14px;
+    font-family: 'Press Start 2P', cursive;
+    font-size: 10px;
     border: 2px solid #8b4513;
     border-radius: 4px;
     background: #f4e8d0;
@@ -245,18 +303,30 @@ const previousPage = () => {
     cursor: pointer;
     transition: all 0.2s;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.nav-button svg,
+.close-button svg {
+    display: block;
+}
+
+
+.nav-button:disabled svg rect {
+    fill: #999;
 }
 
 .nav-button:hover:not(:disabled),
 .close-button:hover {
-    background: #e8dcc4;
-    transform: translateY(-2px);
+    transform: scale(1.1);
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
 }
 
-.nav-button:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
+.nav-button:active:not(:disabled),
+.close-button:active {
+    transform: scale(0.95);
 }
 
 .close-button {
