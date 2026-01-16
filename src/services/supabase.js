@@ -119,6 +119,31 @@ export async function getPlayers() {
     console.error("Error al obtener jugadores:", error);
     return [];
   }
+
+  // Obtener los status de los perfiles asociados
+  if (data && data.length > 0) {
+    const userIds = data.filter((p) => p.user_id).map((p) => p.user_id);
+
+    if (userIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, status")
+        .in("id", userIds);
+
+      const statusMap = {};
+      (profiles || []).forEach((p) => {
+        if (p.status) statusMap[p.id] = p.status;
+      });
+
+      // Agregar status a cada jugador
+      data.forEach((player) => {
+        if (player.user_id && statusMap[player.user_id]) {
+          player.status = statusMap[player.user_id];
+        }
+      });
+    }
+  }
+
   return data || [];
 }
 
@@ -187,6 +212,195 @@ export function subscribeToStatusChanges(callback) {
     .on(
       "postgres_changes",
       { event: "UPDATE", schema: "public", table: "profiles" },
+      callback
+    )
+    .subscribe();
+}
+
+// ==================== SISTEMA DE AYUDA Y NOTIFICACIONES ====================
+
+/**
+ * Enviar solicitud de ayuda
+ * @param {{message: string, type: 'specific'|'general', targetPlayerId?: number}} payload
+ */
+export async function sendHelpRequest(payload) {
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError) throw userError;
+  if (!user) throw new Error("No hay sesión activa");
+
+  // Obtener el player_id del usuario actual
+  const { data: myPlayer } = await supabase
+    .from("players")
+    .select("id")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  const { data, error } = await supabase
+    .from("help_requests")
+    .insert({
+      sender_id: user.id,
+      sender_player_id: myPlayer?.id || null,
+      target_player_id: payload.targetPlayerId || null,
+      message: payload.message,
+      type: payload.type,
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Obtener notificaciones del usuario actual
+ * @param {{ limit?: number, unreadOnly?: boolean }} opts
+ * @returns {Promise<Array>}
+ */
+export async function getMyNotifications(opts = {}) {
+  const { limit = 50, unreadOnly = false } = opts;
+
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError) throw userError;
+  if (!user) return [];
+
+  // Obtener el player_id del usuario actual
+  const { data: myPlayer } = await supabase
+    .from("players")
+    .select("id")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  let query = supabase
+    .from("help_requests")
+    .select(
+      `
+      *,
+      sender:players!help_requests_sender_player_id_fkey(
+        id, nickname, first_name, last_name, image_url, user_id
+      )
+    `
+    )
+    .or(
+      myPlayer?.id
+        ? `target_player_id.eq.${myPlayer.id},type.eq.general`
+        : "type.eq.general"
+    )
+    .neq("sender_id", user.id) // No mostrar mis propios mensajes
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (unreadOnly) {
+    query = query.eq("read", false);
+  }
+
+  const { data, error } = await query;
+
+  if (error) throw error;
+
+  // Obtener los status de los perfiles de los senders
+  if (data && data.length > 0) {
+    const senderUserIds = data
+      .filter((n) => n.sender?.user_id)
+      .map((n) => n.sender.user_id);
+
+    if (senderUserIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, status")
+        .in("id", senderUserIds);
+
+      const statusMap = {};
+      (profiles || []).forEach((p) => {
+        if (p.status) statusMap[p.id] = p.status;
+      });
+
+      // Agregar status a cada notificación
+      data.forEach((n) => {
+        if (n.sender?.user_id && statusMap[n.sender.user_id]) {
+          n.sender.status = statusMap[n.sender.user_id];
+        }
+      });
+    }
+  }
+
+  return data || [];
+}
+
+/**
+ * Marcar notificación como leída
+ * @param {number} notificationId
+ */
+export async function markNotificationAsRead(notificationId) {
+  const { error } = await supabase
+    .from("help_requests")
+    .update({ read: true })
+    .eq("id", notificationId);
+
+  if (error) throw error;
+}
+
+/**
+ * Marcar todas las notificaciones como leídas
+ */
+export async function markAllNotificationsAsRead() {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return;
+
+  const { data: myPlayer } = await supabase
+    .from("players")
+    .select("id")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  const { error } = await supabase
+    .from("help_requests")
+    .update({ read: true })
+    .or(
+      myPlayer?.id
+        ? `target_player_id.eq.${myPlayer.id},type.eq.general`
+        : "type.eq.general"
+    )
+    .neq("sender_id", user.id)
+    .eq("read", false);
+
+  if (error) throw error;
+}
+
+/**
+ * Eliminar una notificación
+ * @param {number} notificationId
+ */
+export async function deleteNotification(notificationId) {
+  const { error } = await supabase
+    .from("help_requests")
+    .delete()
+    .eq("id", notificationId);
+
+  if (error) throw error;
+}
+
+/**
+ * Suscripción en tiempo real a nuevas solicitudes de ayuda
+ * @param {Function} callback
+ * @returns {RealtimeChannel}
+ */
+export function subscribeToHelpRequests(callback) {
+  return supabase
+    .channel("public:help_requests")
+    .on(
+      "postgres_changes",
+      { event: "INSERT", schema: "public", table: "help_requests" },
       callback
     )
     .subscribe();

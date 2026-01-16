@@ -45,10 +45,26 @@
         <div class="hud-slot-inner empty"></div>
       </div>
 
-      <!-- Slots 6-13: Vacíos adicionales -->
-      <div v-for="i in 8" :key="`slot-${i + 5}`" class="hud-slot">
+      <!-- Slots 6-12: Vacíos adicionales -->
+      <div v-for="i in 7" :key="`slot-${i + 5}`" class="hud-slot">
         <div class="hud-slot-inner empty"></div>
       </div>
+
+      <!-- Slot 13 (último): Botón de Ayuda -->
+      <button
+        class="hud-slot hud-slot-active hud-slot-help"
+        @click="openHelpModal"
+        data-tooltip="¡Pedir ayuda!"
+        aria-label="Pedir ayuda"
+      >
+        <div class="hud-slot-inner help-slot">
+          <img
+            src="/icons/abcde.gif"
+            alt="Pedir ayuda"
+            class="hud-slot-icon help-icon"
+          />
+        </div>
+      </button>
     </div>
 
     <!-- Modal del Libro de Información -->
@@ -66,7 +82,7 @@
 import { ref } from "vue";
 import BookInfo from "./BookInfo.vue";
 
-const emit = defineEmits(["open-history"]);
+const emit = defineEmits(["open-history", "open-help"]);
 
 const isBookOpen = ref(false);
 
@@ -80,6 +96,10 @@ const closeBookModal = () => {
 
 const openHistory = () => {
   emit("open-history");
+};
+
+const openHelpModal = () => {
+  emit("open-help");
 };
 </script>
 
@@ -288,6 +308,35 @@ const openHistory = () => {
 .hud-slot-inner.empty {
   background: linear-gradient(135deg, #2b3b2c 0%, #233424 50%, #182718 100%);
   opacity: 0.65;
+}
+
+/* Slot de ayuda especial */
+.hud-slot-help .hud-slot-inner {
+  background: linear-gradient(135deg, #5a4a1a 0%, #4a3a10 45%, #3a2a08 100%);
+  border-color: rgba(255, 193, 7, 0.6);
+  box-shadow: inset -4px -4px 0 rgba(0, 0, 0, 0.42),
+    inset 4px 4px 0 rgba(255, 255, 255, 0.15), 0 10px 0 rgba(0, 0, 0, 0.35),
+    0 0 24px rgba(255, 193, 7, 0.25);
+}
+
+.hud-slot-help:hover .hud-slot-inner {
+  box-shadow: inset -4px -4px 0 rgba(0, 0, 0, 0.42),
+    inset 4px 4px 0 rgba(255, 255, 255, 0.15), 0 10px 0 rgba(0, 0, 0, 0.35),
+    0 0 35px rgba(255, 193, 7, 0.45);
+}
+
+.help-icon {
+  animation: helpPulse 2s ease-in-out infinite;
+}
+
+@keyframes helpPulse {
+  0%,
+  100% {
+    filter: drop-shadow(3px 3px 0 rgba(0, 0, 0, 0.35)) brightness(1);
+  }
+  50% {
+    filter: drop-shadow(3px 3px 0 rgba(0, 0, 0, 0.35)) brightness(1.2);
+  }
 }
 
 /* Icono del slot */
