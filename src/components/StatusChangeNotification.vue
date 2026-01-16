@@ -13,12 +13,8 @@
       >
         <div 
           class="status-icon"
-          :style="{ 
-            color: notification.color,
-            textShadow: `0 0 10px ${notification.color}`
-          }"
         >
-          ✨
+          <img src="/icons/ender_eye.png" alt="Ender Eye" width="40" height="40" />
         </div>
         <div class="status-content">
           <div class="status-title">CAMBIO DE ESTADO</div>
@@ -77,26 +73,30 @@ const props = defineProps({
 }
 
 .status-icon {
-  font-size: 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   animation: sparkle 1.5s ease-in-out infinite;
+}
+
+.status-icon img {
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
 }
 
 @keyframes sparkle {
   0%, 100% {
     transform: scale(1) rotate(0deg);
-    filter: brightness(1);
   }
   25% {
     transform: scale(1.1) rotate(-10deg);
-    filter: brightness(1.3);
   }
   50% {
     transform: scale(1.2) rotate(10deg);
-    filter: brightness(1.5);
   }
   75% {
     transform: scale(1.1) rotate(-10deg);
-    filter: brightness(1.3);
   }
 }
 

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, onUnmounted } from "vue";
 import { supabase } from "@/services/supabase";
 import { Pencil, X, Check } from "lucide-vue-next";
 
@@ -32,6 +32,8 @@ const remainingChars = computed(() => {
   return maxChars - tempStatusText.value.length;
 });
 
+let statusSubscription = null;
+
 async function loadStatus() {
   try {
     let userId = props.userId;
@@ -48,17 +50,52 @@ async function loadStatus() {
       .from("profiles")
       .select("status")
       .eq("id", userId)
-      .single();
+      .maybeSingle();
 
-    if (error) throw error;
-
-    if (data?.status) {
+    // Si no hay error y hay datos con status
+    if (!error && data?.status) {
       statusText.value = data.status.status || "Sin estado";
       statusColor.value = data.status.color || "#00ffc2";
     }
+
+    // Suscribirse a cambios en tiempo real
+    setupRealtimeSubscription(userId);
   } catch (error) {
-    console.error("Error loading status:", error);
+    // Silenciar errores para mantener limpia la consola
   }
+}
+
+function setupRealtimeSubscription(userId) {
+  // Limpiar suscripción anterior si existe
+  if (statusSubscription) {
+    statusSubscription.unsubscribe();
+  }
+
+  console.log('[ProfileStatus] Setting up realtime for userId:', userId);
+
+  // Suscribirse a cambios en el perfil específico
+  statusSubscription = supabase
+    .channel(`profile-status-${userId}`)
+    .on(
+      "postgres_changes",
+      {
+        event: "UPDATE",
+        schema: "public",
+        table: "profiles",
+        filter: `id=eq.${userId}`,
+      },
+      (payload) => {
+        console.log('[ProfileStatus] Realtime update received:', payload);
+        if (payload.new?.status) {
+          statusText.value = payload.new.status.status || "Sin estado";
+          statusColor.value = payload.new.status.color || "#00ffc2";
+          console.log('[ProfileStatus] Status updated in realtime:', statusText.value, statusColor.value);
+        }
+      }
+    )
+    .subscribe((status) => {
+      console.log('[ProfileStatus] Subscription status:', status);
+    });
 }
 
 function startEdit() {
@@ -119,6 +156,12 @@ async function saveStatus() {
 
 onMounted(() => {
   loadStatus();
+});
+
+onUnmounted(() => {
+  if (statusSubscription) {
+    statusSubscription.unsubscribe();
+  }
 });
 </script>
 

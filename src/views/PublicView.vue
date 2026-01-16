@@ -259,6 +259,7 @@ import GameOverBanner from "@/components/GameOverBanner.vue";
 import Rules from "@/components/Rules.vue";
 import hahaDamageSound from "@/assets/audio/hahaDamage.mp3";
 import minecraftDamageSound from "@/assets/audio/MinecraftDamage.mp3";
+import endermanTeleportSound from "@/assets/audio/enderman_teleport.mp3";
 import {
   requestDesktopNotificationsPermission,
   showDesktopNotification,
@@ -627,33 +628,42 @@ async function loadPlayers() {
 }
 
 async function handleStatusChange(payload) {
-  console.log("[Status] Cambio de estado recibido:", payload);
+  console.log("[PublicView] Status change event received:", payload);
 
   // Verificar que hay cambios en la columna status
   if (payload?.new && payload.new.status) {
     const oldStatus = payload.old?.status;
     const newStatus = payload.new.status;
 
-    // Solo notificar si realmente cambió el status
-    if (JSON.stringify(oldStatus) === JSON.stringify(newStatus)) return;
+    console.log("[PublicView] Old status:", oldStatus);
+    console.log("[PublicView] New status:", newStatus);
 
-    // No notificar si es el propio usuario quien cambió
-    if (authUser.value && payload.new.id === authUser.value.id) return;
+    // Solo notificar si realmente cambió el status
+    if (JSON.stringify(oldStatus) === JSON.stringify(newStatus)) {
+      console.log("[PublicView] Status unchanged, skipping notification");
+      return;
+    }
 
     try {
-      // Obtener datos del jugador/perfil
-      const { data: profile, error } = await supabase
-        .from("profiles")
-        .select("first_name, last_name, email")
-        .eq("id", payload.new.id)
-        .single();
+      // Obtener datos del jugador desde la tabla players
+      const { data: player, error } = await supabase
+        .from("players")
+        .select("first_name, last_name, nickname")
+        .eq("user_id", payload.new.id)
+        .maybeSingle();
 
       if (error) throw error;
 
-      const playerName =
-        profile.first_name && profile.last_name
-          ? `${profile.first_name} ${profile.last_name}`
-          : profile.email?.split("@")[0] || "Usuario";
+      const playerName = player
+        ? (player.first_name && player.last_name
+          ? `${player.first_name} ${player.last_name}`
+          : player.nickname || "Usuario")
+        : "Usuario";
+
+      console.log("[PublicView] Player name:", playerName);
+
+      // Reproducir sonido de cambio de estado
+      playStatusChangeSound();
 
       const id = ++statusNotificationId;
 
@@ -696,6 +706,18 @@ async function handleStatusChange(payload) {
     } catch (error) {
       console.error("Error al procesar cambio de estado:", error);
     }
+  }
+}
+
+function playStatusChangeSound() {
+  try {
+    const audio = new Audio(endermanTeleportSound);
+    audio.volume = 0.5;
+    audio.play().catch((error) => {
+      console.warn("[Audio] No se pudo reproducir sonido de cambio de estado:", error.message);
+    });
+  } catch (error) {
+    console.error("[Audio] Error al reproducir sonido de cambio de estado:", error);
   }
 }
 
