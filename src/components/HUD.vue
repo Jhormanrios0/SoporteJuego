@@ -30,10 +30,21 @@
         </div>
       </button>
 
-      <!-- Slot 3: Vacío -->
-      <div class="hud-slot">
-        <div class="hud-slot-inner empty"></div>
-      </div>
+      <!-- Slot 3: Panel de Notificaciones -->
+      <button
+        class="hud-slot hud-slot-active"
+        @click="openNotifications"
+        data-tooltip="Notificaciones"
+        aria-label="Abrir notificaciones"
+      >
+        <div class="hud-slot-inner">
+          <img
+            src=""
+            alt="Notificaciones"
+            class="hud-slot-icon"
+          />
+        </div>
+      </button>
 
       <!-- Slot 4: Vacío -->
       <div class="hud-slot">
@@ -82,7 +93,7 @@
 import { ref } from "vue";
 import BookInfo from "./BookInfo.vue";
 
-const emit = defineEmits(["open-history", "open-help"]);
+const emit = defineEmits(["open-history", "open-help", "open-notifications"]);
 
 const isBookOpen = ref(false);
 
@@ -100,6 +111,10 @@ const openHistory = () => {
 
 const openHelpModal = () => {
   emit("open-help");
+};
+
+const openNotifications = () => {
+  emit("open-notifications");
 };
 </script>
 

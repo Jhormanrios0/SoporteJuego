@@ -406,6 +406,117 @@ export function subscribeToHelpRequests(callback) {
     .subscribe();
 }
 
+// ==================== NOTIFICACIONES GLOBALES (ADMIN) ====================
+
+/**
+ * Enviar notificación global a todos los jugadores (solo admin/VIP)
+ * Reutiliza la tabla help_requests con type='general'
+ * @param {{message: string, targetPlayerId?: number, type: 'general'|'specific'}} payload
+ */
+export async function sendGlobalNotification(payload) {
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError) throw userError;
+  if (!user) throw new Error("No hay sesión activa");
+
+  // Verificar que el usuario sea admin/VIP
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("is_admin")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (!profile?.is_admin) {
+    throw new Error("No tienes permisos para enviar notificaciones globales");
+  }
+
+  // Obtener el player_id del admin si existe
+  const { data: adminPlayer } = await supabase
+    .from("players")
+    .select("id")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  const { data, error } = await supabase
+    .from("help_requests")
+    .insert({
+      sender_id: user.id,
+      sender_player_id: adminPlayer?.id || null,
+      target_player_id: payload.targetPlayerId || null,
+      message: payload.message,
+      type: payload.type || "general",
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Obtener todas las notificaciones globales enviadas por el admin
+ * @param {{ limit?: number }} opts
+ * @returns {Promise<Array>}
+ */
+export async function getAdminSentNotifications(opts = {}) {
+  const { limit = 50 } = opts;
+
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError) throw userError;
+  if (!user) return [];
+
+  let query = supabase
+    .from("help_requests")
+    .select(
+      `
+      *,
+      target:players!help_requests_target_player_id_fkey(
+        id, nickname, first_name, last_name, image_url
+      )
+    `
+    )
+    .eq("sender_id", user.id)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  const { data, error } = await query;
+
+  if (error) throw error;
+  return data || [];
+}
+
+/**
+ * Verificar si el usuario actual es admin/VIP
+ * @returns {Promise<boolean>}
+ */
+export async function isCurrentUserAdmin() {
+  try {
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) return false;
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("is_admin")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    return profile?.is_admin === true;
+  } catch {
+    return false;
+  }
+}
+
 // ==================== SERVICIOS ADMIN ====================
 
 /**

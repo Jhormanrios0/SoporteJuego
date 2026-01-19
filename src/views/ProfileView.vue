@@ -160,7 +160,11 @@
 
           <!-- HUD de Información y otros elementos -->
           <div v-if="!profileNeedsRegister" class="profile-hud-section">
-            <HUD @open-history="openHistoryModal" @open-help="openHelpModal" />
+            <HUD 
+              @open-history="openHistoryModal" 
+              @open-help="openHelpModal"
+              @open-notifications="openNotificationPanel"
+            />
           </div>
 
           <!-- Libro de información (DEPRECADO - Se abre por el HUD) -->
@@ -235,6 +239,21 @@
       @delete="handleDeleteNotification"
       @clear-all="handleClearAllNotifications"
     />
+
+    <!-- Panel de notificaciones (aside) -->
+    <NotificationPanel
+      :isOpen="isNotificationPanelOpen"
+      :isVipOrAdmin="false"
+      :notifications="helpNotifications"
+      :allPlayers="allPlayers"
+      :loading="false"
+      @close="closeNotificationPanel"
+      @mark-read="handleMarkNotificationRead"
+      @delete-notification="handleDeleteNotification"
+    />
+
+    <!-- Banner para solicitar permisos de notificaciones -->
+    <NotificationPermissionBanner v-if="authUser && myPlayer" />
   </div>
 </template>
 
@@ -246,6 +265,8 @@ import BookInfo from "@/components/BookInfo.vue";
 import HUD from "@/components/HUD.vue";
 import HistoryBook from "@/components/HistoryBook.vue";
 import HelpRequestModal from "@/components/HelpRequestModal.vue";
+import NotificationPanel from "@/components/NotificationPanel.vue";
+import NotificationPermissionBanner from "@/components/NotificationPermissionBanner.vue";
 import {
   getMyPlayer,
   getPlayerById,
@@ -565,14 +586,21 @@ async function handleNewHelpRequest(payload) {
   // Agregar al inicio de la lista
   helpNotifications.value.unshift(notification);
 
-  // Desktop notification si está en segundo plano
-  if (document.hidden) {
-    showDesktopNotification({
-      title: newRecord.type === "general" ? "Ayuda General" : "Te mencionaron",
-      body: `${senderName}: ${newRecord.message}`,
-      tag: `help-${newRecord.id}`,
-    });
-  }
+  // Reproducir sonido de notificación
+  playNotificationSound();
+
+  // Desktop notification - mostrar siempre que tengamos permisos
+  const notifTitle = newRecord.type === "general" 
+    ? "📢 Notificación Global" 
+    : "📩 Mensaje Personal";
+  const notifBody = `${senderName}: ${newRecord.message}`;
+  
+  showDesktopNotification({
+    title: notifTitle,
+    body: notifBody,
+    tag: `help-${newRecord.id}`,
+    icon: senderImage || "/arcade.svg",
+  });
 }
 
 async function handleMarkNotificationRead(notificationId) {
@@ -621,6 +649,17 @@ function openNotificationHistory() {
 
 function closeNotificationHistory() {
   isNotificationHistoryOpen.value = false;
+}
+
+// Estado para panel de notificaciones (aside)
+const isNotificationPanelOpen = ref(false);
+
+function openNotificationPanel() {
+  isNotificationPanelOpen.value = true;
+}
+
+function closeNotificationPanel() {
+  isNotificationPanelOpen.value = false;
 }
 
 function goHome() {
@@ -763,6 +802,19 @@ function playStatusChangeSound() {
     });
   } catch (error) {
     console.error("[Audio] Error al reproducir sonido de cambio de estado:", error);
+  }
+}
+
+function playNotificationSound() {
+  try {
+    // Usar el mismo sonido de enderman para notificaciones
+    const audio = new Audio(endermanTeleportSound);
+    audio.volume = 0.6;
+    audio.play().catch((error) => {
+      console.warn("[Audio] No se pudo reproducir sonido de notificación:", error.message);
+    });
+  } catch (error) {
+    console.error("[Audio] Error al reproducir sonido de notificación:", error);
   }
 }
 

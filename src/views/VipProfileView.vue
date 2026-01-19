@@ -157,6 +157,14 @@
               >
                 {{ isSaving ? "GUARDANDO…" : "GUARDAR" }}
               </button>
+              
+              <button
+                class="user-btn notification-btn"
+                type="button"
+                @click="openNotificationPanel"
+              >
+                📢 NOTIFICACIONES
+              </button>
             </div>
           </div>
 
@@ -173,6 +181,20 @@
     
     <!-- Notificaciones de cambio de estado -->
     <StatusChangeNotification :notifications="statusNotifications" />
+
+    <!-- Panel de notificaciones (aside) para Admin/VIP -->
+    <NotificationPanel
+      :isOpen="isNotificationPanelOpen"
+      :isVipOrAdmin="true"
+      :notifications="sentNotifications"
+      :allPlayers="allPlayers"
+      :loading="notificationsLoading"
+      @close="closeNotificationPanel"
+      @send-notification="handleSendNotification"
+    />
+
+    <!-- Banner para solicitar permisos de notificaciones -->
+    <NotificationPermissionBanner v-if="authUser && isAdmin" />
   </div>
 </template>
 
@@ -188,8 +210,13 @@ import {
   subscribeToStatusChanges,
   userLogout,
   supabase,
+  sendGlobalNotification,
+  getAdminSentNotifications,
+  getPlayers,
 } from "@/services/supabase";
 import StatusChangeNotification from "@/components/StatusChangeNotification.vue";
+import NotificationPanel from "@/components/NotificationPanel.vue";
+import NotificationPermissionBanner from "@/components/NotificationPermissionBanner.vue";
 import endermanTeleportSound from "@/assets/audio/enderman_teleport.mp3";
 
 const router = useRouter();
@@ -216,6 +243,12 @@ const saveError = ref("");
 // Menú de perfil (dropdown)
 const profileMenuOpen = ref(false);
 const profileMenuEl = ref(null);
+
+// Panel de notificaciones
+const isNotificationPanelOpen = ref(false);
+const sentNotifications = ref([]);
+const allPlayers = ref([]);
+const notificationsLoading = ref(false);
 
 const adminLabel = computed(() => {
   const name = (adminProfile.value?.display_name || vipName.value || "").trim();
@@ -447,6 +480,53 @@ async function logout() {
     isAdmin.value = false;
     closeProfileMenu();
     goHome();
+  }
+}
+
+// Funciones del panel de notificaciones
+function openNotificationPanel() {
+  isNotificationPanelOpen.value = true;
+  loadNotificationsData();
+}
+
+function closeNotificationPanel() {
+  isNotificationPanelOpen.value = false;
+}
+
+async function loadNotificationsData() {
+  notificationsLoading.value = true;
+  try {
+    // Cargar notificaciones enviadas y jugadores disponibles
+    const [notifications, players] = await Promise.all([
+      getAdminSentNotifications({ limit: 100 }),
+      getPlayers(),
+    ]);
+
+    sentNotifications.value = notifications;
+    allPlayers.value = players;
+  } catch (error) {
+    console.error("[VIP] Error cargando datos de notificaciones:", error);
+  } finally {
+    notificationsLoading.value = false;
+  }
+}
+
+async function handleSendNotification(payload) {
+  try {
+    await sendGlobalNotification({
+      message: payload.message,
+      type: payload.type,
+      targetPlayerId: payload.targetPlayerId,
+    });
+
+    // Recargar notificaciones enviadas
+    const notifications = await getAdminSentNotifications({ limit: 100 });
+    sentNotifications.value = notifications;
+
+    console.log("[VIP] Notificación enviada exitosamente");
+  } catch (error) {
+    console.error("[VIP] Error enviando notificación:", error);
+    throw error; // Propagar para que el componente lo maneje
   }
 }
 
@@ -712,6 +792,18 @@ onUnmounted(() => {
 .vip-actions {
   display: flex;
   justify-content: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.notification-btn {
+  background: rgba(0, 255, 194, 0.12);
+  border-color: rgba(0, 255, 194, 0.5);
+  color: #00ffc2;
+}
+
+.notification-btn:hover {
+  background: rgba(0, 255, 194, 0.18);
 }
 
 .file-input {
