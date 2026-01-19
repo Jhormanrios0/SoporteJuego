@@ -129,6 +129,15 @@
                 <div class="identity-tag">JUGADOR</div>
                 <div class="identity-name">{{ fullName || userLabel }}</div>
                 <div class="identity-sub">{{ authUser?.email }}</div>
+                
+                <!-- Información de Tipo de Sangre y Fecha de Nacimiento -->
+                <PlayerBirthday 
+                  v-if="!profileNeedsRegister"
+                  :player="myPlayer"
+                  @update="handleBirthdayUpdate"
+                  class="identity-birthday"
+                />
+                
                 <ProfileStatus />
 
                 <div v-if="profileNeedsRegister" class="identity-warn">
@@ -225,6 +234,7 @@ import {
 } from "@/services/supabase";
 import ProfileStatus from "@/components/ProfileStatus.vue";
 import StatusChangeNotification from "@/components/StatusChangeNotification.vue";
+import PlayerBirthday from "@/components/PlayerBirthday.vue";
 import endermanTeleportSound from "@/assets/audio/enderman_teleport.mp3";
 
 const router = useRouter();
@@ -291,6 +301,12 @@ async function refreshLifeHistory() {
       e?.message || "No se pudo cargar el historial de vidas";
   } finally {
     lifeHistoryLoading.value = false;
+  }
+}
+
+function handleBirthdayUpdate(data) {
+  if (myPlayer.value?.id) {
+    loadAuth(); // Uso de la funcion ya creada para recargar la info del jugador
   }
 }
 
@@ -1000,6 +1016,11 @@ onUnmounted(() => {
   font-family: "Press Start 2P", monospace;
   font-size: 0.62rem;
   color: rgba(255, 255, 255, 0.75);
+}
+
+.identity-birthday {
+  margin-top: 8px;
+  margin-bottom: 4px;
 }
 
 .identity-hint {
