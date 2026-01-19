@@ -223,6 +223,10 @@ import StatusChangeNotification from "@/components/StatusChangeNotification.vue"
 import NotificationPanel from "@/components/NotificationPanel.vue";
 import NotificationPermissionBanner from "@/components/NotificationPermissionBanner.vue";
 import MessageNotificationToast from "@/components/MessageNotificationToast.vue";
+import { 
+  getDesktopNotificationPermission,
+  showAdminMessageNotification 
+} from "@/services/desktopNotifications";
 import endermanTeleportSound from "@/assets/audio/enderman_teleport.mp3";
 
 const router = useRouter();
@@ -530,6 +534,19 @@ async function handleSendNotification(payload) {
     sentNotifications.value = notifications;
 
     console.log("[VIP] Notificación enviada exitosamente");
+    
+    // Show desktop notification to confirm
+    const permission = getDesktopNotificationPermission();
+    console.log('[VIP] 📊 Estado de permisos:', permission);
+    
+    if (permission === 'granted') {
+      showAdminMessageNotification({
+        type: payload.type,
+        senderName: 'Sistema',
+        message: `Notificación enviada: ${payload.message}`,
+        senderImage: '/arcade.svg',
+      });
+    }
   } catch (error) {
     console.error("[VIP] Error enviando notificación:", error);
     throw error; // Propagar para que el componente lo maneje
