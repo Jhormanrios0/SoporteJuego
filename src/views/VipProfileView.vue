@@ -182,6 +182,11 @@
     <!-- Notificaciones de cambio de estado -->
     <StatusChangeNotification :notifications="statusNotifications" />
 
+    <!-- Toast de notificaciones de mensajes (vacío para VIP, solo visual) -->
+    <MessageNotificationToast 
+      :notifications="[]"
+    />
+
     <!-- Panel de notificaciones (aside) para Admin/VIP -->
     <NotificationPanel
       :isOpen="isNotificationPanelOpen"
@@ -217,6 +222,7 @@ import {
 import StatusChangeNotification from "@/components/StatusChangeNotification.vue";
 import NotificationPanel from "@/components/NotificationPanel.vue";
 import NotificationPermissionBanner from "@/components/NotificationPermissionBanner.vue";
+import MessageNotificationToast from "@/components/MessageNotificationToast.vue";
 import endermanTeleportSound from "@/assets/audio/enderman_teleport.mp3";
 
 const router = useRouter();
