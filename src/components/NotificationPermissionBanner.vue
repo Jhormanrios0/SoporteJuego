@@ -6,9 +6,9 @@
           <Bell :size="24" />
         </div>
         <div class="banner-text">
-          <h3 class="banner-title">Activa las notificaciones</h3>
+          <h3 class="banner-title">🔔 Activa las notificaciones</h3>
           <p class="banner-description">
-            Recibe alertas cuando te lleguen mensajes importantes
+            Recibe alertas del admin y mensajes importantes en tiempo real
           </p>
         </div>
         <div class="banner-actions">
@@ -38,6 +38,7 @@ const DISMISS_KEY = "notification_permission_dismissed";
 
 function checkIfShouldShow() {
   if (!canUseDesktopNotifications()) {
+    console.log('[NotificationBanner] ❌ Browser no soporta notificaciones');
     shouldShow.value = false;
     return;
   }
@@ -45,17 +46,37 @@ function checkIfShouldShow() {
   const permission = getDesktopNotificationPermission();
   const dismissed = localStorage.getItem(DISMISS_KEY);
 
+  console.log('[NotificationBanner] 📊 Estado:', { permission, dismissed });
+
   // Mostrar solo si no tiene permisos y no lo ha descartado antes
   shouldShow.value = permission === "default" && !dismissed;
+  
+  if (shouldShow.value) {
+    console.log('[NotificationBanner] ✅ Mostrando banner de solicitud de permisos');
+  }
 }
 
 async function requestPermission() {
+  console.log('[NotificationBanner] 🔔 Solicitando permisos de notificaciones...');
   const granted = await requestDesktopNotificationsPermission();
+  
   if (granted) {
+    console.log('[NotificationBanner] ✅ Permisos concedidos!');
     shouldShow.value = false;
     // Remover el flag de descartado si otorgan permisos
     localStorage.removeItem(DISMISS_KEY);
+    
+    // Show a test notification
+    try {
+      new Notification('✅ Notificaciones activadas', {
+        body: 'Ahora recibirás mensajes del admin en tiempo real',
+        icon: '/arcade.svg',
+      });
+    } catch (error) {
+      console.error('[NotificationBanner] Error showing test notification:', error);
+    }
   } else {
+    console.warn('[NotificationBanner] ❌ Permisos denegados o cancelados');
     // Si rechazan, ocultar el banner
     shouldShow.value = false;
   }

@@ -209,7 +209,12 @@
 	import NotificationBell from '@/components/NotificationBell.vue';
 	import NotificationHistory from '@/components/NotificationHistory.vue';
 	import MessageNotificationToast from '@/components/MessageNotificationToast.vue';
-	import { showDesktopNotification } from '@/services/desktopNotifications';
+	import { 
+		showDesktopNotification, 
+		showAdminMessageNotification,
+		getDesktopNotificationPermission,
+		requestDesktopNotificationsPermission 
+	} from '@/services/desktopNotifications';
 	import ProfileStatus from '@/components/ProfileStatus.vue';
 	import StatusChangeNotification from '@/components/StatusChangeNotification.vue';
 	import endermanTeleportSound from '@/assets/audio/enderman_teleport.mp3';
@@ -256,6 +261,9 @@
 	// Notificaciones toast de mensajes
 	const messageToasts = ref([]);
 	let messageToastId = 0;
+
+	// Auto-request notification permissions
+	const hasRequestedPermissions = ref(false);
 
 	const profileNeedsRegister = computed(() => !!authUser.value && !myPlayer.value);
 
@@ -562,16 +570,20 @@
 		console.log('[Profile] 🔊 Sonido reproducido');
 
 		// Desktop notification - mostrar siempre que tengamos permisos
-		const notifTitle = newRecord.type === 'general' ? '📢 Notificación Global' : '📩 Mensaje Personal';
-		const notifBody = `${senderName}: ${newRecord.message}`;
-
-		showDesktopNotification({
-			title: notifTitle,
-			body: notifBody,
-			tag: `help-${newRecord.id}`,
-			icon: senderImage || '/arcade.svg',
+		console.log('[Profile] 📊 Estado de permisos de notificaciones:', getDesktopNotificationPermission());
+		
+		const notificationResult = showAdminMessageNotification({
+			type: newRecord.type,
+			senderName,
+			message: newRecord.message,
+			senderImage: senderImage || '/arcade.svg',
 		});
-		console.log('[Profile] 🖥️ Notificación de escritorio enviada');
+
+		if (notificationResult) {
+			console.log('[Profile] ✅ Notificación de escritorio creada exitosamente');
+		} else {
+			console.warn('[Profile] ⚠️ No se pudo crear la notificación de escritorio');
+		}
 	}
 
 	async function handleMarkNotificationRead(notificationId) {
@@ -803,6 +815,24 @@
 		}
 	}
 
+	/**
+	 * Check and log notification permission status
+	 */
+	function checkNotificationPermissions() {
+		const permission = getDesktopNotificationPermission();
+		console.log('[Profile] 🔔 Estado de permisos de notificaciones:', permission);
+		
+		if (permission === 'granted') {
+			console.log('[Profile] ✅ Permisos de notificaciones CONCEDIDOS');
+		} else if (permission === 'denied') {
+			console.warn('[Profile] ❌ Permisos de notificaciones DENEGADOS');
+		} else if (permission === 'default') {
+			console.log('[Profile] ⏳ Permisos de notificaciones pendientes (mostrar banner)');
+		}
+		
+		return permission;
+	}
+
 	onMounted(async () => {
 		window.addEventListener('keydown', onKeydown);
 		document.addEventListener('click', onDocumentClick);
@@ -863,6 +893,9 @@
 				handleNewHelpRequest(payload);
 			});
 			console.log('[Profile] ✅ Suscripción inicial establecida');
+			
+			// Check notification permissions status
+			checkNotificationPermissions();
 		}
 	});
 

@@ -19,13 +19,29 @@ export async function requestDesktopNotificationsPermission() {
   if (Notification.permission === "granted") return true;
   if (Notification.permission === "denied") return false;
 
-  const result = await Notification.requestPermission();
-  return result === "granted";
+  try {
+    const result = await Notification.requestPermission();
+    console.log('[Notifications] Permission result:', result);
+    return result === "granted";
+  } catch (error) {
+    console.error('[Notifications] Error requesting permission:', error);
+    return false;
+  }
+}
+
+/**
+ * Check if we should auto-request permissions (only for default state)
+ * @returns {boolean}
+ */
+export function shouldRequestNotificationPermission() {
+  if (!canUseDesktopNotifications()) return false;
+  return Notification.permission === "default";
 }
 
 /**
  * Shows an OS-level notification (Windows toast on Chrome/Edge) if permission is granted.
  * Note: Only works while the site is open; for notifications when closed you need Push.
+ * @returns {Notification|null} The notification instance or null
  */
 export function showDesktopNotification({
   title,
@@ -34,10 +50,19 @@ export function showDesktopNotification({
   icon = DEFAULT_ICON,
   requireInteraction = false,
 } = {}) {
-  if (!canUseDesktopNotifications()) return null;
-  if (Notification.permission !== "granted") return null;
+  if (!canUseDesktopNotifications()) {
+    console.warn('[Notifications] Browser does not support notifications');
+    return null;
+  }
+  
+  if (Notification.permission !== "granted") {
+    console.warn('[Notifications] Permission not granted. Current permission:', Notification.permission);
+    return null;
+  }
 
   try {
+    console.log('[Notifications] Creating desktop notification:', { title, body, tag });
+    
     const n = new Notification(String(title || "Notificación"), {
       body: String(body || ""),
       icon,
@@ -47,20 +72,59 @@ export function showDesktopNotification({
       requireInteraction,
     });
 
-    // auto-close to avoid piling up
+    // Log when notification is shown
+    n.onshow = () => {
+      console.log('[Notifications] Notification shown successfully');
+    };
+
+    // Log if notification fails
+    n.onerror = (error) => {
+      console.error('[Notifications] Notification error:', error);
+    };
+
+    // Auto-close to avoid piling up
+    const timeout = requireInteraction ? 12000 : 6000;
     setTimeout(
       () => {
         try {
           n.close();
-        } catch {
-          // noop
+          console.log('[Notifications] Notification auto-closed after', timeout, 'ms');
+        } catch (err) {
+          console.warn('[Notifications] Error closing notification:', err);
         }
       },
-      requireInteraction ? 12000 : 6000
+      timeout
     );
 
     return n;
-  } catch {
+  } catch (error) {
+    console.error('[Notifications] Error creating notification:', error);
     return null;
   }
 }
+
+/**
+ * Shows a notification from admin message
+ * @param {Object} params Message parameters
+ * @param {string} params.type Message type ('general' or 'specific')
+ * @param {string} params.senderName Name of sender
+ * @param {string} params.message Message content
+ * @param {string} params.senderImage Optional sender image
+ * @returns {Notification|null}
+ */
+export function showAdminMessageNotification({ type, senderName, message, senderImage }) {
+  const notifTitle = type === 'general' 
+    ? '📢 Notificación Global' 
+    : '📩 Mensaje Personal';
+  
+  const notifBody = `${senderName}: ${message}`;
+  
+  return showDesktopNotification({
+    title: notifTitle,
+    body: notifBody,
+    tag: `admin-message-${Date.now()}`,
+    icon: senderImage || DEFAULT_ICON,
+    requireInteraction: true, // Important messages should require user action
+  });
+}
+
